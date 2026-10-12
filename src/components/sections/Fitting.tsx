@@ -208,7 +208,7 @@ export function Fitting() {
           </div>
 
           {/* Escolhas */}
-          <div className="grid min-w-0 content-start gap-8">
+          <div className="grid min-w-0 grid-cols-1 content-start gap-8">
             <div>
               <div role="tablist" aria-label="Peças" className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1">
                 {tabs.map((t) => (
@@ -257,13 +257,13 @@ export function Fitting() {
               </ul>
             </div>
 
-            <fieldset className="border-t border-line pt-6">
+            <fieldset className="min-w-0 border-t border-line pt-6">
               <legend className="sr-only">Peças vestidas</legend>
               <p aria-hidden className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
                 Vestindo agora
               </p>
               {items.length ? (
-                <ul className="grid gap-3">
+                <ul className="grid grid-cols-1 gap-3">
                   {items.map((item) => (
                     <WornRow key={item.product.id} item={item} />
                   ))}
@@ -273,9 +273,9 @@ export function Fitting() {
               )}
             </fieldset>
 
-            <fieldset className="border-t border-line pt-6">
+            <fieldset className="min-w-0 border-t border-line pt-6">
               <legend className="sr-only">Seu tamanho</legend>
-              <div className="mb-4 flex items-baseline justify-between gap-4">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <p aria-hidden className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">
                   Seu tamanho
                 </p>

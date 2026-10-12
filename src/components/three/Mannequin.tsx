@@ -95,7 +95,7 @@ const ringMaterial = new THREE.MeshStandardMaterial({ color: '#d9b77e', metalnes
 const EXPLODE: Record<Slot, THREE.Vector3> = {
   top: new THREE.Vector3(0.05, 0.2, 0.55),
   bottom: new THREE.Vector3(0, -0.1, 0.32),
-  full: new THREE.Vector3(0, 0.08, 0.5),
+  full: new THREE.Vector3(0, 0.05, 0.32),
 }
 
 function Piece({ piece, detail, fx }: { piece: WornPiece; detail: number; fx?: MutableRefObject<MannequinFx> }) {

@@ -117,12 +117,12 @@ function Director({ progress, looks, play, reduced, mobile, onReady }: Props) {
     if (!g || !sp) return
     const wide = !mobile && viewport.aspect > 1.15
     // No celular o manequim fica menor e no alto, com o texto embaixo
-    const baseScale = wide ? 1 : Math.min(0.56, viewport.width / 4.4)
+    const baseScale = wide ? 1 : Math.min(0.5, viewport.width / 4.8)
     const closeScale = baseScale * (wide ? 2.35 : 2.1)
     const scale = THREE.MathUtils.lerp(baseScale, closeScale, zoom)
     const baseX = wide ? 1.75 : 0
     // no celular a cabeça fica perto do topo e o texto ocupa a metade de baixo
-    const baseY = wide ? -1.72 : viewport.height / 2 - 0.45 - 3.5 * baseScale
+    const baseY = wide ? -1.72 : viewport.height / 2 - 0.4 - 3.5 * baseScale
     // de perto: o peito fica na altura do meio da tela
     const closeY = (wide ? 0.15 : 0.6) - 2.35 * closeScale
     g.scale.setScalar(THREE.MathUtils.damp(g.scale.x, scale, 5, dt))

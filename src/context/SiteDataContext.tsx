@@ -6,9 +6,12 @@ import { availableCategories, categoryOn, emptySettings, productOrder, type Comm
 
 type SiteDataState = SiteData & {
   loaded: boolean
-  // peças que aparecem no site: as do painel (nas categorias ligadas) ou, enquanto o catálogo
-  // estiver vazio, a coleção de exemplo
+  // peças que aparecem no site: as do painel (nas categorias ligadas) ou, se o catálogo do painel
+  // estiver vazio, a coleção de exemplo. Fica vazio até os dados chegarem (sem "piscar" o exemplo).
   catalog: Product[]
+  // peças da abertura: igual ao catálogo, mas com a coleção de exemplo enquanto os dados não chegam
+  // (a abertura é preparada atrás da tela de carregamento e precisa de roupa para vestir)
+  showcase: Product[]
   sample: boolean
   categories: Category[]
   // recado publicado na hora (painel em "publicar direto"): entra na lista sem recarregar
@@ -99,10 +102,13 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(() => {
-    const sample = data.products.length === 0
+    const sample = data.loaded && data.products.length === 0
     const categories = availableCategories(data.settings)
-    const catalog = (sample ? sampleProducts : data.products).filter((p) => categoryOn(data.settings, p.category)).sort(productOrder)
-    return { ...data, catalog, sample, categories, addComment }
+    const catalog = data.loaded
+      ? (sample ? sampleProducts : data.products).filter((p) => categoryOn(data.settings, p.category)).sort(productOrder)
+      : []
+    const showcase = data.loaded ? catalog : sampleProducts
+    return { ...data, catalog, showcase, sample, categories, addComment }
   }, [data, addComment])
   return <SiteDataContext.Provider value={value}>{children}</SiteDataContext.Provider>
 }

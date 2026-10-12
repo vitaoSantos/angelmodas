@@ -1,6 +1,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import * as THREE from 'three'
+import { createFabricMaterial } from './fabric'
 import { Mannequin, restingFx, type MannequinFx, type WornPiece } from './Mannequin'
 import { Glow, GoldDust, SoftShadow, Studio } from './Studio'
 import type { Spin } from './shared'
@@ -74,6 +75,9 @@ function Scene({ pieces, spin, mobile, reduced, capture, onReady }: Omit<Props, 
   const photoJob = useRef<{ ctx: CanvasRenderingContext2D; overlay: Overlay; done: () => void } | null>(null)
   const { gl, scene, camera } = useThree()
   const looks = useMemo(() => [pieces], [pieces])
+  // tecido escondido: o shader das roupas é preparado na abertura mesmo que ainda não haja peças
+  const warmFabric = useMemo(() => createFabricMaterial(), [])
+  useEffect(() => () => warmFabric.dispose(), [warmFabric])
   const lookKey = pieces.map((p) => p.key + p.color).join('|')
 
   // Peça nova: ela "é costurada" de cima para baixo, com o brilho dourado
@@ -186,6 +190,9 @@ function Scene({ pieces, spin, mobile, reduced, capture, onReady }: Omit<Props, 
       <group position={[0, -1.72, 0]}>
         <GoldDust count={mobile ? 24 : 50} spread={0.8} />
       </group>
+      <mesh visible={false} material={warmFabric}>
+        <planeGeometry args={[0.01, 0.01]} />
+      </mesh>
       {onReady && <Warmup onReady={onReady} />}
     </>
   )

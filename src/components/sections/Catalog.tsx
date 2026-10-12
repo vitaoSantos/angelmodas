@@ -28,7 +28,7 @@ const ALL = 'tudo'
 const NEW = 'novidades'
 
 export function Catalog() {
-  const { catalog, categories, settings } = useSiteData()
+  const { catalog, categories, settings, loaded } = useSiteData()
   const [filter, setFilter] = useState(ALL)
   const [view, setView] = useState<'arara' | 'lista'>('arara')
   const [open, setOpen] = useState<Product | null>(null)
@@ -114,7 +114,9 @@ export function Catalog() {
         </div>
       </div>
 
-      {products.length === 0 ? (
+      {!loaded ? (
+        <div aria-busy="true" className="mt-10 h-[68svh] min-h-[30rem] lg:h-[78svh]" />
+      ) : products.length === 0 ? (
         <p className="container-x mt-10 text-muted">Nenhuma peça nesta categoria por enquanto.</p>
       ) : showRack ? (
         <RackView key={filter} products={products} onSelect={setOpen} showPrices={settings.showPrices} />

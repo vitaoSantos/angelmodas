@@ -163,20 +163,23 @@ export function CatalogPanel({ password, data, update }: PanelProps) {
           <h2 id="pecas" className="font-display text-3xl">
             No catálogo <span className="text-base text-muted">· {data.products.length} {data.products.length === 1 ? 'peça' : 'peças'}</span>
           </h2>
-          <div className="flex flex-wrap gap-2">
-            <label className="relative">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <label className="relative w-full sm:w-56">
               <span className="sr-only">Buscar peça</span>
               <TbSearch aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
-              <input className={`${field} w-56 pl-10`} placeholder="Buscar pelo nome" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <input className={`${field} pl-10`} placeholder="Buscar pelo nome" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
-            <select className={`${field} w-auto`} value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filtrar por categoria">
-              <option value="">Todas as categorias</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+            <label className="w-full sm:w-52">
+              <span className="sr-only">Filtrar por categoria</span>
+              <select className={field} value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">Todas as categorias</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
         {data.products.length === 0 ? (
@@ -384,24 +387,29 @@ function ProductEditor({
       const swatchData = swatch.kind === 'new' ? await toBase64(swatch.blob) : swatch.kind === 'remove' ? '' : undefined
       let saved: Product
       const queue = [...photos]
+      // cada foto enviada sai da fila na hora: se uma falhar, tentar de novo não repete as que já foram
+      const sent = (key: string) => setPhotos((list) => list.filter((p) => p.key !== key))
       if (!current) {
         setBusy('Enviando a capa…')
         const first = queue.shift()
         const cover = first ? await preparePhoto(first.file) : undefined
         saved = (await adminCreateProduct(password, payload, cover, cover ? swatchData : undefined)).product
+        if (first) sent(first.key)
       } else {
         setBusy('Salvando…')
         saved = (await adminUpdateProduct(password, current.id, payload, swatchData)).product
       }
       setCurrent(saved)
+      setSwatch({ kind: 'keep' })
       update((d) => ({ ...d, products: [saved, ...d.products.filter((p) => p.id !== saved.id)].sort(productOrder) }))
       // as outras fotos vão uma por vez (cada chamada tem limite de tamanho)
       for (let i = 0; i < queue.length; i++) {
         setBusy(`Enviando foto ${i + 1} de ${queue.length}…`)
         saved = (await adminAddProductPhoto(password, saved.id, await preparePhoto(queue[i].file))).product
+        sent(queue[i].key)
+        setCurrent(saved)
         update((d) => ({ ...d, products: d.products.map((p) => (p.id === saved.id ? saved : p)) }))
       }
-      setPhotos([])
       setBusy('')
       onDone(current ? 'Peça atualizada! Em alguns segundos o site já mostra.' : 'Peça cadastrada! Em alguns segundos ela aparece na arara do site.')
     } catch (err) {
