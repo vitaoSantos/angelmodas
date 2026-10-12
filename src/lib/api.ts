@@ -90,6 +90,13 @@ export function adminCoverProductPhoto(password: string, id: string, key: string
   return adminAction<{ product: Product }>(password, { action: 'product-photo-cover', id, key })
 }
 
+// Sugestões da IA para a peça da foto (`image`: JPEG em base64). `point`: onde o tecido aparece bem (0 a 1)
+export type PhotoAnalysis = Pick<ProductFields, 'name' | 'category' | 'fits' | 'fabric' | 'colors' | 'description'> & { point: { x: number; y: number } }
+
+export function adminAnalyzePhoto(password: string, image: string) {
+  return adminAction<{ analysis: PhotoAnalysis }>(password, { action: 'product-analyze', image })
+}
+
 export function adminDeleteProduct(password: string, id: string) {
   return adminAction<{ ok: true }>(password, { action: 'product-delete', id })
 }

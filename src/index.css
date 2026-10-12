@@ -57,6 +57,20 @@
     overflow-x: clip;
   }
 
+  /* Listas (select): a lista que abre é desenhada pelo sistema. Sem cores explícitas, no Windows ela
+     abre com fundo branco e o texto claro do site, e as opções ficam invisíveis. */
+  select {
+    color-scheme: dark;
+  }
+  select option,
+  select optgroup {
+    background-color: var(--color-ink-2);
+    color: var(--color-cream);
+  }
+  select optgroup {
+    color: var(--color-gold);
+  }
+
   ::selection {
     background: rgb(216 185 138 / 0.45);
     color: #fff;

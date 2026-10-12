@@ -29,7 +29,7 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
 // Ficha da peça: fotos (ou o manequim vestido), cores, tamanhos e os botões de provar e pedir
 export function ProductSheet({ product, onClose }: { product: Product; onClose: () => void }) {
   const lenis = useLenis()
-  const { wear } = useLook()
+  const { wear, skin } = useLook()
   const scrollTo = useScrollTo()
   const desktop = useIsDesktop()
   const reduced = useReducedMotion()
@@ -149,7 +149,7 @@ export function ProductSheet({ product, onClose }: { product: Product; onClose: 
               </div>
               <Boundary>
                 <Suspense fallback={null}>
-                  <FittingStage pieces={pieces} spin={spin} active mobile={!desktop} reduced={reduced} background="#211c19" />
+                  <FittingStage pieces={pieces} spin={spin} active mobile={!desktop} reduced={reduced} background="#211c19" skin={skin} />
                 </Suspense>
               </Boundary>
               <span className="pointer-events-none absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-line bg-ink/60 px-3 py-1.5 text-xs text-muted">

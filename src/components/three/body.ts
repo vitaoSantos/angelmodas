@@ -340,22 +340,125 @@ export function limbGeometry(limb: Limb, detail: number, cols = 28, rows = 40) {
   })
 }
 
-export function headGeometry(detail: number) {
-  const g = new THREE.SphereGeometry(1, Math.round(40 * detail), Math.round(28 * detail))
+// Rosto esculpido de leve, como manequim de vitrine: nariz, maçãs, lábios, orelhas e o arco das sobrancelhas.
+// `d`: direção numa esfera de raio 1 (frente = +z). Devolve quanto a superfície sai (ou entra) nessa direção.
+function faceRelief(d: THREE.Vector3) {
+  const front = smoothstep(0.45, 0.85, d.z)
+  const ax = Math.abs(d.x)
+  const y = d.y
+  // nariz: fino na raiz, mais largo e saliente na ponta
+  const tip = y > -0.2 ? 0.025 + 0.155 * smoothstep(0.24, -0.2, y) : 0.18 * smoothstep(-0.33, -0.2, y)
+  const width = 0.055 + 0.05 * smoothstep(0.05, -0.24, y)
+  const nose = tip * gauss(d.x / width)
+  const sockets = -0.05 * gauss((ax - 0.31) / 0.13) * gauss((y - 0.12) / 0.1)
+  const brow = 0.03 * gauss((y - 0.29) / 0.07) * smoothstep(0.75, 0.2, ax)
+  const cheeks = 0.035 * gauss((ax - 0.47) / 0.16) * gauss((y + 0.1) / 0.13)
+  const lips = 0.05 * gauss(d.x / 0.17) * gauss((y + 0.42) / 0.045) + 0.045 * gauss(d.x / 0.15) * gauss((y + 0.54) / 0.05)
+  const ears = 0.07 * smoothstep(0.82, 0.97, ax) * gauss((y + 0.1) / 0.16) * gauss((d.z + 0.1) / 0.12)
+  return front * (nose + sockets + brow + cheeks + lips) + ears
+}
+
+// Formato da cabeça (sem o rosto): queixo mais fino e um pouco para a frente; nuca mais cheia
+function shapeHead(v: THREE.Vector3) {
+  const low = smoothstep(0, -1, v.y)
+  v.x *= 1 - 0.2 * low
+  v.z *= 1 - 0.1 * low
+  if (v.z > 0) v.z += 0.08 * low * v.z
+  if (v.z < 0 && v.y > -0.2) v.z *= 1.06
+  return v
+}
+
+export function headGeometry(detail: number, face = true) {
+  const g = new THREE.SphereGeometry(1, Math.round(96 * detail), Math.round(80 * detail))
   const { center, radii } = BODY.head
   const pos = g.getAttribute('position') as THREE.BufferAttribute
+  // direção original de cada ponto: o shader pinta o rosto (lábios, sobrancelhas, cílios) com ela
+  g.setAttribute('aFace', pos.clone())
   const v = new THREE.Vector3()
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i)
-    // queixo mais fino e um pouco para a frente; nuca mais cheia
-    const low = smoothstep(0, -1, v.y)
-    v.x *= 1 - 0.2 * low
-    v.z *= 1 - 0.1 * low
-    if (v.z > 0) v.z += 0.08 * low * v.z
-    if (v.z < 0 && v.y > -0.2) v.z *= 1.06
-    v.multiply(radii).add(center)
+    if (face) v.multiplyScalar(1 + faceRelief(v))
+    shapeHead(v).multiply(radii).add(center)
     pos.setXYZ(i, v.x, v.y, v.z)
   }
+  g.computeVertexNormals()
+  return g
+}
+
+// ---------- Cabelo esculpido: preso para trás num coque baixo ----------
+
+// Altura da linha do cabelo em volta da cabeça, pela posição de frente (1) a costas (-1)
+const HAIRLINE: [number, number][] = [
+  [-1, -0.62],
+  [-0.5, -0.55],
+  [-0.2, -0.36],
+  [0.05, -0.16],
+  [0.3, 0.06],
+  [0.6, 0.27],
+  [0.85, 0.42],
+  [1, 0.5],
+]
+
+function hairline(front: number) {
+  for (let i = 1; i < HAIRLINE.length; i++) {
+    const [x1, y1] = HAIRLINE[i]
+    if (front <= x1) {
+      const [x0, y0] = HAIRLINE[i - 1]
+      return y0 + ((front - x0) / (x1 - x0)) * (y1 - y0)
+    }
+  }
+  return HAIRLINE[HAIRLINE.length - 1][1]
+}
+
+export const BUN = { center: new THREE.Vector3(0, 3.235, -0.165), radii: new THREE.Vector3(0.088, 0.074, 0.062) }
+
+// Os fios correm da testa para o coque: cada fio é um "meridiano" em volta do eixo testa → coque
+const HAIR_AXIS = new THREE.Vector3(0, 0.4, 1).normalize()
+const HAIR_SIDE = new THREE.Vector3(1, 0, 0)
+const HAIR_UP = new THREE.Vector3().crossVectors(HAIR_AXIS, HAIR_SIDE)
+
+// A malha vai do alto da cabeça (v = 0) até a linha do cabelo (v = 1), dando a volta inteira:
+// a borda da malha é a própria linha do cabelo, uma curva lisa (sem degraus de triângulos)
+export function hairGeometry(detail: number) {
+  const cols = Math.round(120 * detail)
+  const rows = Math.round(40 * detail)
+  const { center, radii } = BODY.head
+  const strand: number[] = []
+  const d = new THREE.Vector3()
+  const geometry = wrapGrid(
+    cols,
+    rows,
+    (u, v, out) => {
+      const around = Math.PI + u * Math.PI * 2 // emenda atrás, escondida pelo coque
+      const edge = Math.acos(hairline(Math.cos(around)))
+      const polar = v * edge
+      d.set(Math.sin(polar) * Math.sin(around), Math.cos(polar), Math.sin(polar) * Math.cos(around))
+      // volume: mais alto no topo, assentado na linha do cabelo
+      const thick = 0.012 + (0.04 + 0.05 * Math.max(d.y, 0) + 0.05 * Math.max(-d.z, 0)) * (1 - 0.5 * Math.max(d.z, 0)) * (1 - smoothstep(0.45, 1, v))
+      out.copy(d).multiplyScalar(1 + faceRelief(d) + thick)
+      shapeHead(out).multiply(radii).add(center)
+    },
+    (_u, _v, _p, i) => {
+      strand[i] = (Math.atan2(d.dot(HAIR_SIDE), d.dot(HAIR_UP)) / (Math.PI * 2)) * 70
+    },
+  )
+  geometry.setAttribute('aStrand', new THREE.BufferAttribute(new Float32Array(strand), 1))
+  return geometry
+}
+
+// Coque: uma bola achatada com os fios torcidos em espiral
+export function bunGeometry(detail: number) {
+  const g = new THREE.SphereGeometry(1, Math.round(40 * detail), Math.round(28 * detail))
+  const pos = g.getAttribute('position') as THREE.BufferAttribute
+  const strand = new Float32Array(pos.count)
+  const v = new THREE.Vector3()
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i)
+    strand[i] = (Math.atan2(v.y, v.x) / (Math.PI * 2)) * 14 + Math.acos(Math.max(-1, Math.min(1, -v.z))) * 2.5
+    v.multiply(BUN.radii).add(BUN.center)
+    pos.setXYZ(i, v.x, v.y, v.z)
+  }
+  g.setAttribute('aStrand', new THREE.BufferAttribute(strand, 1))
   g.computeVertexNormals()
   return g
 }

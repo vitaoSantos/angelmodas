@@ -10,6 +10,7 @@ import {
   TbPhotoPlus,
   TbPlus,
   TbSearch,
+  TbSparkles,
   TbStar,
   TbTrash,
   TbX,
@@ -22,6 +23,7 @@ import { fitById, fits, suggestedFits, validFits, type Slot } from '../data/fits
 import { useSpinDrag } from '../hooks/useSpinDrag'
 import {
   adminAddProductPhoto,
+  adminAnalyzePhoto,
   adminCoverProductPhoto,
   adminCreateProduct,
   adminDeleteProduct,
@@ -283,6 +285,7 @@ function ProductEditor({
   const [pickedColor, setPickedColor] = useState(0)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [ai, setAi] = useState<{ state: 'idle' | 'busy' | 'done' | 'error'; text: string }>({ state: 'idle', text: '' })
   const [touchedFits, setTouchedFits] = useState(Boolean(product))
   const [current, setCurrent] = useState(product)
   const previews = useRef(new Set<string>())
@@ -372,6 +375,41 @@ function ProductEditor({
     const preview = URL.createObjectURL(blob)
     previews.current.add(preview)
     setSwatch({ kind: 'new', blob, preview })
+  }
+
+  // A IA olha a foto e preenche categoria, molde, tecido e cores; no ponto que ela indica,
+  // o conta-gotas tira a cor exata e o recorte do tecido para o manequim 3D
+  async function analyze() {
+    if (!picker) return
+    const bitmap = picker.bitmap
+    setAi({ state: 'busy', text: '' })
+    try {
+      const image = await encodeImage(bitmap, 1024, 0.85)
+      const { analysis } = await adminAnalyzePhoto(password, await toBase64(image.blob))
+      const { x, y } = analysis.point
+      const exact = pickColor(bitmap, x, y)
+      const colors = analysis.colors.length
+        ? analysis.colors.map((c, i) => (i === 0 ? { ...c, hex: exact } : c))
+        : [{ name: nearestColorName(exact), hex: exact }]
+      setFields((f) => ({
+        ...f,
+        name: f.name.trim() ? f.name : analysis.name,
+        description: f.description.trim() ? f.description : analysis.description,
+        category: analysis.category,
+        fits: analysis.fits.length ? analysis.fits : (suggestedFits[analysis.category] ?? []),
+        fabric: analysis.fabric,
+        colors,
+      }))
+      setTouchedFits(true)
+      setPickedColor(0)
+      const blob = await cropSwatch(bitmap, x, y)
+      const preview = URL.createObjectURL(blob)
+      previews.current.add(preview)
+      setSwatch({ kind: 'new', blob, preview })
+      setAi({ state: 'done', text: 'Pronto! Confira a categoria, o molde, o tecido e as cores (e veja a prévia 3D) antes de salvar.' })
+    } catch (err) {
+      setAi({ state: 'error', text: errorText(err) })
+    }
   }
 
   function changeCategory(id: string) {
@@ -536,6 +574,31 @@ function ProductEditor({
               )}
             </ul>
           </div>
+
+          {picker && (
+            <div className="grid gap-3 rounded-2xl border border-gold/30 bg-gold/[0.04] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="max-w-sm text-sm text-muted">
+                  <span className="font-medium text-cream">Preencher com IA:</span> a IA olha a foto e sugere nome, categoria, molde do manequim,
+                  tecido e cores.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void analyze()}
+                  disabled={ai.state === 'busy' || Boolean(busy)}
+                  className="inline-flex items-center gap-2 rounded-full border border-gold/60 px-5 py-2.5 text-sm font-semibold text-gold-soft transition-colors hover:bg-gold/10 disabled:opacity-60"
+                >
+                  {ai.state === 'busy' ? <TbLoader2 aria-hidden className="animate-spin" /> : <TbSparkles aria-hidden />}
+                  {ai.state === 'busy' ? 'Analisando a foto…' : 'Analisar a foto'}
+                </button>
+              </div>
+              {ai.text && (
+                <p role="status" className={`text-sm ${ai.state === 'error' ? 'text-red-300' : 'text-mint'}`}>
+                  {ai.text}
+                </p>
+              )}
+            </div>
+          )}
 
           {picker ? (
             <div>

@@ -27,6 +27,7 @@ type Props = {
   capture?: MutableRefObject<Capture | null>
   onReady?: () => void
   background?: string
+  skin?: string // tom de pele do manequim
 }
 
 // Quadro do vídeo/foto: cabeçalho, manequim e a lista das peças
@@ -67,7 +68,7 @@ const VIDEO_TYPES = [
   ['video/webm', 'webm'],
 ] as const
 
-function Scene({ pieces, spin, mobile, reduced, capture, onReady }: Omit<Props, 'active'>) {
+function Scene({ pieces, spin, mobile, reduced, capture, onReady, skin }: Omit<Props, 'active'>) {
   const fx = useRef<MannequinFx>(restingFx())
   const turn = useRef<THREE.Group>(null)
   const sewStart = useRef(-10)
@@ -183,7 +184,7 @@ function Scene({ pieces, spin, mobile, reduced, capture, onReady }: Omit<Props, 
       {/* o manequim desce até o meio da tela (a câmera fica em y = 0, olhando reto) */}
       <group position={[0, -1.72, 0]}>
         <group ref={turn} rotation={[0, 0.35, 0]}>
-          <Mannequin looks={looks} fx={fx} detail={mobile ? 0.65 : 1} />
+          <Mannequin looks={looks} fx={fx} detail={mobile ? 0.65 : 1} skin={skin} />
           <SoftShadow />
         </group>
       </group>

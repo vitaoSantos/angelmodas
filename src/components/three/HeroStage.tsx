@@ -32,6 +32,7 @@ type Props = {
   mobile: boolean
   active?: boolean
   onReady?: () => void
+  skin?: string
 }
 
 // Anotações escritas à mão na vista "explodida" (presas a pontos do manequim)
@@ -41,7 +42,7 @@ const NOTES = [
   { text: 'caimento perfeito', at: new THREE.Vector3(-0.45, 1.25, 0.3), side: -1 },
 ]
 
-function Director({ progress, looks, play, reduced, mobile, onReady }: Props) {
+function Director({ progress, looks, play, reduced, mobile, onReady, skin }: Props) {
   const fx = useRef<MannequinFx>({ ...restingFx(), rise: -1, sketch: 1, sew: 3.2 })
   const group = useRef<THREE.Group>(null)
   const spinner = useRef<THREE.Group>(null)
@@ -68,7 +69,7 @@ function Director({ progress, looks, play, reduced, mobile, onReady }: Props) {
     const f = fx.current
     const clock = frame.clock.elapsedTime
 
-    // ---------- Construção (automática): croqui dourado → porcelana → costura da roupa ----------
+    // ---------- Construção (automática): croqui dourado → corpo → costura da roupa ----------
     if (play && start.current === null) start.current = clock
     const t = reduced ? 10 : start.current === null ? -1 : clock - start.current
     f.rise = t < 0 ? -1 : -0.2 + easeOut(seg(t, 0.1, 1.5)) * 3.9
@@ -141,7 +142,7 @@ function Director({ progress, looks, play, reduced, mobile, onReady }: Props) {
     <>
       <group ref={group} position={[mobile ? 0 : 1.75, -1.72, 0]}>
         <group ref={spinner}>
-          <Mannequin looks={looks.length ? looks : [[]]} fx={fx} detail={mobile ? 0.6 : 1} />
+          <Mannequin looks={looks.length ? looks : [[]]} fx={fx} detail={mobile ? 0.6 : 1} skin={skin} />
           <SoftShadow />
           {NOTES.map((note, i) => (
             <Html key={note.text} position={note.at} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>

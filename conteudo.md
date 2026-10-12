@@ -13,7 +13,9 @@ Itens marcados com **[?]** precisam de resposta. Depois é só preencher nos arq
 
 ## Catálogo (painel `/admin` → Catálogo)
 
-- Falta criar a variável `ADMIN_PASSWORD` no Netlify para usar o painel (ver README). [?]
+- ✅ Variável `ADMIN_PASSWORD` criada no Netlify.
+- Análise da foto com IA no cadastro (opcional): criar a variável `ANTHROPIC_API_KEY` no Netlify com uma chave da API do Claude (ver README). [?]
+- Tom de pele padrão do manequim: usei **média**; a cliente pode trocar no provador (clara, média, morena, negra ou porcelana). Querem outro padrão? [?]
 - Enquanto não houver peças cadastradas, o site mostra uma coleção de exemplo inspirada nos posts do Instagram (sem preço). Ela some quando a primeira peça for cadastrada.
 - Preços: mostrar no site ou só no WhatsApp? Dá para ligar/desligar no painel (Opções do site). [?]
 - Categorias usadas: vestidos, blusas, tricô, conjuntos, calças, saias e shorts, fitness, acessórios. Faltou alguma? [?]

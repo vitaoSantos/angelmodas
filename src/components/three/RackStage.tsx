@@ -27,6 +27,7 @@ type Props = {
   mobile: boolean
   reduced: boolean
   showPrices: boolean
+  skin?: string
 }
 
 // ---------- Peças compartilhadas ----------
@@ -85,7 +86,7 @@ const geometries = {
   hanger: hangerGeometry(),
   frame: cardGeometry(CARD.w, CARD.h),
   photo: cardGeometry(CARD.w - 0.07, CARD.h - 0.07),
-  tag: new THREE.PlaneGeometry(0.5, 0.28),
+  tag: new THREE.PlaneGeometry(0.9, 0.506),
   string: new THREE.CylinderGeometry(0.003, 0.003, 0.16, 4),
 }
 
@@ -185,7 +186,7 @@ function useTag(product: Product, showPrices: boolean) {
 // ---------- Cartão ----------
 
 // Foto do manequim vestido com a peça (renderizada uma vez numa textura)
-function MannequinShot({ product, env }: { product: Product; env: THREE.Texture | null }) {
+function MannequinShot({ product, env, skin }: { product: Product; env: THREE.Texture | null; skin?: string }) {
   const looks = useMemo(() => [wornPieces(product, 0)], [product])
   return (
     <RenderTexture attach="map" width={384} height={480} frames={3}>
@@ -196,7 +197,7 @@ function MannequinShot({ product, env }: { product: Product; env: THREE.Texture 
       <StudioLights />
       <Glow color="#ffffff" opacity={0.7} scale={7} position={[0, 2, -2]} />
       <group rotation={[0, 0.35, 0]}>
-        <Mannequin looks={looks} detail={0.5} pedestal={false} />
+        <Mannequin looks={looks} detail={0.5} pedestal={false} skin={skin} />
       </group>
       <SoftShadow opacity={0.35} />
     </RenderTexture>
@@ -211,6 +212,7 @@ const Card = memo(function Card({
   env,
   showPrices,
   reduced,
+  skin,
 }: {
   product: Product
   index: number
@@ -219,6 +221,7 @@ const Card = memo(function Card({
   env: THREE.Texture | null
   showPrices: boolean
   reduced: boolean
+  skin?: string
 }) {
   const group = useRef<THREE.Group>(null)
   const swing = useRef({ angle: 0, velocity: 0, lift: 0, hover: false })
@@ -276,14 +279,14 @@ const Card = memo(function Card({
                 <meshStandardMaterial key={photo ? 'foto' : 'sem-foto'} map={photo} color={photo ? '#ffffff' : '#d9cbb8'} roughness={0.55} />
               ) : (
                 <meshStandardMaterial roughness={0.6}>
-                  <MannequinShot product={product} env={env} />
+                  <MannequinShot key={skin} product={product} env={env} skin={skin} />
                 </meshStandardMaterial>
               )}
             </mesh>
             {/* etiqueta pendurada no canto do cartão */}
-            <group position={[0.36, -CARD.h / 2 - 0.02, 0.02]} rotation={[0, 0, 0.12]}>
+            <group position={[0.3, -CARD.h / 2 - 0.02, 0.03]} rotation={[0, 0, 0.07]}>
               <mesh geometry={geometries.string} material={string} position={[0, -0.06, 0]} />
-              <mesh geometry={geometries.tag} position={[0, -0.27, 0.005]} onPointerOver={over} onPointerOut={out} onClick={click}>
+              <mesh geometry={geometries.tag} position={[0, -0.385, 0.005]} onPointerOver={over} onPointerOut={out} onClick={click}>
                 <meshStandardMaterial map={tag} roughness={0.9} />
               </mesh>
             </group>
@@ -296,7 +299,7 @@ const Card = memo(function Card({
 
 // ---------- Cena ----------
 
-function Rack({ products, motion, onSelect, mobile, reduced, showPrices }: Omit<Props, 'active'>) {
+function Rack({ products, motion, onSelect, mobile, reduced, showPrices, skin }: Omit<Props, 'active'>) {
   const gl = useThree((s) => s.gl)
   const [env] = useState(() => makeStudioEnvironment(gl, 64))
   const [center, setCenter] = useState(0)
@@ -324,7 +327,7 @@ function Rack({ products, motion, onSelect, mobile, reduced, showPrices }: Omit<
     <>
       <RailBar length={length} motion={motion} />
       {visible.map((p, i) => (
-        <Card key={p.id} product={p} index={from + i} motion={motion} onSelect={onSelect} env={envTexture} showPrices={showPrices} reduced={reduced} />
+        <Card key={p.id} product={p} index={from + i} motion={motion} onSelect={onSelect} env={envTexture} showPrices={showPrices} reduced={reduced} skin={skin} />
       ))}
       <GoldDust count={mobile ? 30 : 60} spread={1.4} />
     </>
@@ -371,7 +374,7 @@ export default function RackStage({ active, ...props }: Props) {
       <fog attach="fog" args={['#120f0d', 6, 13]} />
       <Glow color="#c9a06a" opacity={0.3} scale={14} position={[0, 0.2, -3]} />
       <StudioLights />
-      <group position={[0, 0.75, 0]}>
+      <group position={[0, 0.88, 0]}>
         <Rack {...props} />
       </group>
     </Canvas>

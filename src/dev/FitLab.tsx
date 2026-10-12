@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { Mannequin, type WornPiece } from '../components/three/Mannequin'
 import { SoftShadow, Studio } from '../components/three/Studio'
 import { fits } from '../data/fits'
+import { skinTones } from '../data/skin'
 
 // Laboratório dos moldes (só no `npm run dev`, em /moldes): um manequim para cada molde, para ajustar
 // o desenho das roupas em src/components/three/garments.ts. Parâmetros do endereço:
@@ -12,6 +13,7 @@ import { fits } from '../data/fits'
 //   ?fabric=tricot   o mesmo tecido em todos
 //   ?cols=4&zoom=2&cy=2.2   colunas, aproximação e altura do centro da câmera
 //   ?pair=0   sem a peça de acompanhamento (calça jeans com as blusas, regata com as calças)
+//   ?skin=clara|media|morena|negra|manequim   tom de pele (todos os tons, um por manequim: ?skin=todos)
 const COLORS = ['#4a2a1b', '#f1e38e', '#b97a74', '#ebe2d2', '#161414', '#8eaecd', '#7a4630', '#a9533a', '#a8c5e6', '#1c2446', '#9a35b0']
 const FABRICS = ['malha', 'crepe', 'tricot', 'crepe', 'crepe', 'jeans', 'canelado', 'tricot', 'linho', 'suplex', 'suplex', 'cetim', 'renda']
 const VIEWS: Record<string, number> = { front: 0, back: Math.PI, side: Math.PI / 2, three: 0.6 }
@@ -27,6 +29,7 @@ export default function FitLab() {
   const fabric = params.get('fabric')
   const pair = params.get('pair') !== '0'
   const centerY = Number(params.get('cy') ?? 1.8 - (rows - 1) * 2.1)
+  const skin = params.get('skin') ?? undefined
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0e0c0b' }}>
@@ -44,7 +47,7 @@ export default function FitLab() {
           if (pair && f.slot === 'bottom') pieces.push({ key: 'regata', fit: 'regata', color: '#f4f2ee', fabric: 'malha' })
           return (
             <group key={f.id} position={[((i % cols) - (Math.min(cols, list.length) - 1) / 2) * 1.6, -Math.floor(i / cols) * 4.2, 0]} rotation={[0, rotation, 0]}>
-              <Mannequin looks={[pieces]} />
+              <Mannequin looks={[pieces]} skin={skin === 'todos' ? skinTones[i % skinTones.length].id : skin} />
               <SoftShadow />
             </group>
           )

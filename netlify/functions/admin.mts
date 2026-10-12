@@ -1,5 +1,6 @@
 import type { Context } from '@netlify/functions'
 import { newestFirst, productOrder, type AdminData, type MuralPhoto, type Product, type ProductPhoto } from '../../src/lib/siteTypes'
+import { AnalysisError, analyzePhoto } from '../lib/analyze'
 import { cleanProductFields } from '../lib/products'
 import { cleanSettings, hasCategoryOn } from '../lib/settings'
 import { clean } from '../lib/text'
@@ -28,11 +29,11 @@ import {
 } from '../lib/store'
 
 // Painel (/admin), protegido pela senha da variável de ambiente ADMIN_PASSWORD.
-// GET: tudo o que o painel mostra. POST JSON { action }: peças do catálogo (criar, editar, fotos, apagar),
+// GET: tudo o que o painel mostra. POST JSON { action }: peças do catálogo (criar, editar, fotos, apagar, analisar a foto com IA),
 // fotos do mural de clientes, opções do site, recados e se os recados entram direto ou esperam aprovação.
 
 // O Netlify aceita até 6 MB por chamada (contando o base64): a foto grande cabe com folga
-const LIMITS = { title: 90, look: 60, thumb: 600 * 1024, full: 3 * 1024 * 1024, swatch: 120 * 1024, photos: 400, products: 300, productPhotos: 6 }
+const LIMITS = { title: 90, look: 60, thumb: 600 * 1024, full: 3 * 1024 * 1024, swatch: 120 * 1024, analyze: 1024 * 1024, photos: 400, products: 300, productPhotos: 6 }
 const LOCK = { attempts: 8, ms: 15 * 60_000 }
 
 type Body = Record<string, unknown>
@@ -107,6 +108,21 @@ async function loadAll(): Promise<AdminData> {
 }
 
 // ---------- Catálogo ----------
+
+// Foto reduzida no navegador → sugestões para o formulário da peça (não salva nada)
+async function analyzeProduct(body: Body) {
+  const image = bytes(body.image, LIMITS.analyze)
+  if (!image) return json({ error: 'Foto grande demais ou com defeito.' }, 413)
+  const type = sniff(image)
+  if (!type) return json({ error: 'Formato de imagem não aceito. Use JPG, PNG ou WebP.' }, 415)
+  try {
+    return json({ analysis: await analyzePhoto(body.image as string, type) })
+  } catch (err) {
+    if (err instanceof AnalysisError) return json({ error: err.message }, err.status)
+    throw err
+  }
+}
+
 
 // Altera uma peça já cadastrada; devolve a peça atualizada (ou null se não existe)
 async function changeProduct(id: string, change: (p: Product) => Product) {
@@ -391,6 +407,8 @@ export default async (req: Request, context: Context) => {
       return coverProductPhoto(body)
     case 'product-delete':
       return deleteProduct(body.id)
+    case 'product-analyze':
+      return analyzeProduct(body)
     case 'mural-upload':
       return muralUpload(body)
     case 'mural-edit':

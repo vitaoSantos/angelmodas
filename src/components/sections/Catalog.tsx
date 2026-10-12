@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useInView } from 'motion/react'
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TbArrowLeft, TbArrowRight, TbHandFinger, TbLayoutGrid, TbHanger } from 'react-icons/tb'
+import { useLook } from '../../context/LookContext'
 import { useSiteData } from '../../context/SiteDataContext'
 import { useIsDesktop, useReducedMotion } from '../../hooks/useMediaQuery'
 import { priceLabel } from '../../lib/products'
@@ -130,6 +131,7 @@ export function Catalog() {
 }
 
 function RackView({ products, onSelect, showPrices }: { products: Product[]; onSelect: (p: Product) => void; showPrices: boolean }) {
+  const { skin } = useLook()
   const wrap = useRef<HTMLDivElement>(null)
   const motionRef = useRef<RackMotion>(newRackMotion())
   const desktop = useIsDesktop()
@@ -242,6 +244,7 @@ function RackView({ products, onSelect, showPrices }: { products: Product[]; onS
                 mobile={!desktop}
                 reduced={reduced}
                 showPrices={showPrices}
+                skin={skin}
               />
             </Suspense>
           </RackBoundary>
@@ -270,10 +273,10 @@ function RackView({ products, onSelect, showPrices }: { products: Product[]; onS
               className="min-w-0 text-center"
             >
               <span className="block truncate font-display text-2xl text-cream sm:text-3xl">{current.name}</span>
-              <span className="mt-1 block text-sm text-muted">
-                {showPrices && priceLabel(current) ? `${priceLabel(current)} · ` : ''}
+              <span className="mt-1 flex items-baseline justify-center gap-3 text-sm text-muted">
+                {showPrices && priceLabel(current) && <span className="text-xl font-semibold text-gold-soft sm:text-2xl">{priceLabel(current)}</span>}
                 <span className="text-gold underline-offset-4 hover:underline">ver detalhes</span>
-                <span className="ml-2 tabular-nums text-faint">
+                <span className="tabular-nums text-faint">
                   {index + 1}/{products.length}
                 </span>
               </span>

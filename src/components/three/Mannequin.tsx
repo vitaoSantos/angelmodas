@@ -2,8 +2,9 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import * as THREE from 'three'
 import { fitById, type Slot } from '../../data/fits'
-import { BODY, headGeometry, limbGeometry, torsoGeometry } from './body'
-import { applyFabric, applyMask, createBodyMaterial, createFabricMaterial, fabricUniforms, type BodyUniforms } from './fabric'
+import { DEFAULT_SKIN, skinById } from '../../data/skin'
+import { BODY, bunGeometry, hairGeometry, headGeometry, limbGeometry, torsoGeometry } from './body'
+import { applyFabric, applyMask, createBodyMaterials, createFabricMaterial, fabricUniforms, type BodyPart } from './fabric'
 import { garmentMeshes, ringPlacement } from './garments'
 
 // Uma peça vestida no manequim
@@ -18,7 +19,7 @@ export type WornPiece = {
 // Efeitos da abertura, lidos a cada quadro (sem re-render do React)
 export type MannequinFx = {
   rise: number // o corpo aparece até esta altura (10 = inteiro)
-  sketch: number // 1 = só as linhas douradas do croqui, 0 = porcelana
+  sketch: number // 1 = só as linhas douradas do croqui, 0 = corpo pronto
   sew: number // a roupa aparece acima desta altura (-10 = inteira)
   explode: number // 0 a 1: as peças se afastam do corpo
   sweep: number // troca de cor: abaixo desta altura a roupa fica na cor `sweepColor`
@@ -167,51 +168,63 @@ function Piece({ piece, detail, fx }: { piece: WornPiece; detail: number; fx?: M
 
 // ---------- Manequim ----------
 
-type BodyParts = { geometry: THREE.BufferGeometry; key: string }[]
+type BodyParts = { geometry: THREE.BufferGeometry; key: string; part: BodyPart }[]
 
-const bodyCache = new Map<number, BodyParts>()
+const bodyCache = new Map<string, BodyParts>()
 
-function bodyParts(detail: number): BodyParts {
-  const hit = bodyCache.get(detail)
+// `human`: rosto esculpido e cabelo; sem isso, a cabeça lisa do manequim de porcelana
+function bodyParts(detail: number, human: boolean): BodyParts {
+  const id = `${detail}:${human}`
+  const hit = bodyCache.get(id)
   if (hit) return hit
   const parts: BodyParts = [
-    { key: 'torso', geometry: torsoGeometry(detail) },
-    { key: 'head', geometry: headGeometry(detail) },
-    { key: 'neck', geometry: limbGeometry(BODY.neck, detail, 24, 12) },
-    ...BODY.arms.map((a, i) => ({ key: `arm${i}`, geometry: limbGeometry(a, detail, 24, 44) })),
-    ...BODY.hands.map((a, i) => ({ key: `hand${i}`, geometry: limbGeometry(a, detail, 18, 16) })),
-    ...BODY.legs.map((a, i) => ({ key: `leg${i}`, geometry: limbGeometry(a, detail, 28, 64) })),
-    ...BODY.feet.map((a, i) => ({ key: `foot${i}`, geometry: limbGeometry(a, detail, 18, 18) })),
+    { key: 'torso', part: 'body', geometry: torsoGeometry(detail) },
+    { key: 'head', part: 'face', geometry: headGeometry(detail, human) },
+    { key: 'neck', part: 'body', geometry: limbGeometry(BODY.neck, detail, 24, 12) },
+    ...BODY.arms.map((a, i) => ({ key: `arm${i}`, part: 'body' as const, geometry: limbGeometry(a, detail, 24, 44) })),
+    ...BODY.hands.map((a, i) => ({ key: `hand${i}`, part: 'body' as const, geometry: limbGeometry(a, detail, 18, 16) })),
+    ...BODY.legs.map((a, i) => ({ key: `leg${i}`, part: 'body' as const, geometry: limbGeometry(a, detail, 28, 64) })),
+    ...BODY.feet.map((a, i) => ({ key: `foot${i}`, part: 'body' as const, geometry: limbGeometry(a, detail, 18, 18) })),
   ]
-  bodyCache.set(detail, parts)
+  if (human) parts.push({ key: 'hair', part: 'hair', geometry: hairGeometry(detail) }, { key: 'bun', part: 'hair', geometry: bunGeometry(detail) })
+  bodyCache.set(id, parts)
   return parts
 }
 
-// `looks`: um ou mais looks; com `fx`, aparece o de número `fx.look` (os outros ficam prontos e escondidos)
+// `looks`: um ou mais looks; com `fx`, aparece o de número `fx.look` (os outros ficam prontos e escondidos).
+// `skin`: tom de pele (data/skin.ts); "manequim" é a porcelana clássica, sem cabelo.
 export function Mannequin({
   looks,
   detail = 1,
   fx,
-  bodyColor = '#c4aa8a',
+  skin = DEFAULT_SKIN,
   pedestal = true,
 }: {
   looks: WornPiece[][]
   detail?: number
   fx?: MutableRefObject<MannequinFx>
-  bodyColor?: string
+  skin?: string
   pedestal?: boolean
 }) {
-  const parts = useMemo(() => bodyParts(detail), [detail])
-  const material = useMemo(() => createBodyMaterial(bodyColor), [bodyColor])
+  const tone = skinById(skin)
+  const human = tone.hair !== null
+  const parts = useMemo(() => bodyParts(detail, human), [detail, human])
+  const materials = useMemo(() => createBodyMaterials(tone), [tone])
   const groups = useRef<(THREE.Group | null)[]>([])
-  useEffect(() => () => material.dispose(), [material])
+  useEffect(
+    () => () => {
+      materials.body.dispose()
+      materials.face.dispose()
+      materials.hair.dispose()
+    },
+    [materials],
+  )
 
   useFrame(() => {
     const f = fx?.current
     if (!f) return
-    const u = material.userData.uniforms as BodyUniforms
-    u.uRise.value = f.rise
-    u.uSketch.value = f.sketch
+    materials.uniforms.uRise.value = f.rise
+    materials.uniforms.uSketch.value = f.sketch
     groups.current.forEach((g, i) => {
       if (g) g.visible = i === f.look % Math.max(1, looks.length)
     })
@@ -220,7 +233,7 @@ export function Mannequin({
   return (
     <group>
       {parts.map((p) => (
-        <mesh key={p.key} geometry={p.geometry} material={material} />
+        <mesh key={p.key} geometry={p.geometry} material={materials[p.part]} />
       ))}
       {looks.map((pieces, i) => (
         <group key={i} ref={(g) => void (groups.current[i] = g)} visible={i === 0}>

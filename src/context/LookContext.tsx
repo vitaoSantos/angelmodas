@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { WornPiece } from '../components/three/Mannequin'
+import { DEFAULT_SKIN, skinTones } from '../data/skin'
 import { canWear, priceLabel, productSlots, wornPieces } from '../lib/products'
 import type { Product } from '../lib/siteTypes'
 import { useSiteData } from './SiteDataContext'
@@ -16,6 +17,9 @@ type LookState = {
   look: LookSlots
   size: string
   setSize: (size: string) => void
+  // tom de pele do manequim (o site lembra neste navegador)
+  skin: string
+  setSkin: (skin: string) => void
   wear: (product: Product, color?: number) => void
   setColor: (productId: string, color: number) => void
   takeOff: (productId: string) => void
@@ -34,6 +38,18 @@ type LookState = {
 const LookContext = createContext<LookState | null>(null)
 
 const EMPTY: LookSlots = { top: null, bottom: null, full: null }
+
+const SKIN_KEY = 'anghel-pele'
+
+function readSkin() {
+  try {
+    const saved = localStorage.getItem(SKIN_KEY)
+    if (saved && skinTones.some((t) => t.id === saved)) return saved
+  } catch {
+    // sem acesso ao armazenamento: usa o tom padrão
+  }
+  return DEFAULT_SKIN
+}
 
 const firstWith = (list: Product[], slot: 'top' | 'bottom' | 'full', single = true) =>
   list.find((p) => {
@@ -76,6 +92,7 @@ export function LookProvider({ children }: { children: ReactNode }) {
   const byId = useMemo(() => new Map(wearable.map((p) => [p.id, p])), [wearable])
   const [look, setLook] = useState<LookSlots>(() => defaultLook(wearable))
   const [size, setSizeState] = useState('M')
+  const [skin, setSkinState] = useState(readSkin)
   const [touched, setTouched] = useState(false)
 
   // Catálogo mudou (carregou do painel): se alguma peça vestida sumiu, volta para o look inicial
@@ -135,6 +152,15 @@ export function LookProvider({ children }: { children: ReactNode }) {
     setSizeState(value)
   }, [])
 
+  const setSkin = useCallback((value: string) => {
+    setSkinState(value)
+    try {
+      localStorage.setItem(SKIN_KEY, value)
+    } catch {
+      // navegação privada: vale só nesta visita
+    }
+  }, [])
+
   const value = useMemo<LookState>(() => {
     const picks = look.full ? [look.full] : [look.top, look.bottom]
     const items: WornItem[] = []
@@ -177,6 +203,8 @@ export function LookProvider({ children }: { children: ReactNode }) {
       look,
       size,
       setSize,
+      skin,
+      setSkin,
       wear,
       setColor,
       takeOff,
@@ -189,7 +217,7 @@ export function LookProvider({ children }: { children: ReactNode }) {
       lines,
       summary: lines.join(' | '),
     }
-  }, [look, size, setSize, wear, setColor, takeOff, surprise, byId, wearable, touched])
+  }, [look, size, setSize, skin, setSkin, wear, setColor, takeOff, surprise, byId, wearable, touched])
 
   return <LookContext.Provider value={value}>{children}</LookContext.Provider>
 }

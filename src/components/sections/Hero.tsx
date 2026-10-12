@@ -2,6 +2,7 @@ import { motion, useInView, useMotionValueEvent, useScroll, useTransform, type M
 import { Component, lazy, Suspense, useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TbArrowDown, TbArrowRight, TbHanger } from 'react-icons/tb'
 import { useIntro } from '../../context/IntroContext'
+import { useLook } from '../../context/LookContext'
 import { useSiteData } from '../../context/SiteDataContext'
 import { fabricById } from '../../data/catalog'
 import { useIsDesktop, useReducedMotion } from '../../hooks/useMediaQuery'
@@ -266,6 +267,7 @@ export function Hero() {
   const reduced = useReducedMotion()
   const { introDone, markReady } = useIntro()
   const { showcase } = useSiteData()
+  const { skin } = useLook()
   const looks = useMemo(() => showcaseLooks(showcase.filter(canWear), 6), [showcase])
   const onReady = useCallback(() => markReady('hero'), [markReady])
   const inView = useInView(section)
@@ -283,7 +285,7 @@ export function Hero() {
         <div className="absolute inset-0" data-cursor="scene">
           <SceneBoundary fallback={fallback}>
             <Suspense fallback={null}>
-              <HeroStage progress={scrollYProgress} looks={looks} play={introDone} reduced={reduced} mobile={!desktop} active={inView} onReady={onReady} />
+              <HeroStage progress={scrollYProgress} looks={looks} play={introDone} reduced={reduced} mobile={!desktop} active={inView} onReady={onReady} skin={skin} />
             </Suspense>
           </SceneBoundary>
         </div>

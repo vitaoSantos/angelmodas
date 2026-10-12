@@ -342,27 +342,113 @@ export function fabricUniforms(material: THREE.Material) {
   return material.userData.uniforms as FabricUniforms
 }
 
-// Corpo do manequim: porcelana marfim. Na abertura ele "nasce" do chão em linhas douradas (croqui).
+// Corpo do manequim: pele (com cabelo esculpido e o rosto pintado de leve) ou porcelana clássica.
+// Na abertura ele "nasce" do chão em linhas douradas (croqui).
 export type BodyUniforms = { uRise: { value: number }; uSketch: { value: number }; uGold: { value: THREE.Color } }
 
-export function createBodyMaterial(color = '#c4aa8a') {
-  const uniforms: BodyUniforms = { uRise: { value: 10 }, uSketch: { value: 0 }, uGold: { value: new THREE.Color('#ffcf8a') } }
-  const material = new THREE.MeshPhysicalMaterial({
-    color,
-    roughness: 0.38,
-    metalness: 0.15,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.25,
-    sheen: 0.3,
-    sheenColor: new THREE.Color('#fff1dc'),
-  })
+export type BodyPart = 'body' | 'face' | 'hair'
+export type BodyMaterials = Record<BodyPart, THREE.MeshPhysicalMaterial> & { uniforms: BodyUniforms }
+
+
+// Rosto pintado: lábios, mancha de blush, sobrancelhas e o traço dos cílios (olhos fechados, sereno).
+// `vFace` é a direção na esfera da cabeça antes do relevo (as mesmas medidas de body.ts).
+const FACE_PAINT = /* glsl */ `
+  {
+    vec3 hd = vFace;
+    float onFace = smoothstep(0.35, 0.6, hd.z);
+    float ax = abs(hd.x);
+    // lábios: o de cima um pouco mais fino, e a linha da boca
+    float lipUp = 1.0 - smoothstep(0.7, 1.0, length(vec2(hd.x / 0.19, (hd.y + 0.43) / 0.05)));
+    float lipDown = 1.0 - smoothstep(0.7, 1.0, length(vec2(hd.x / 0.165, (hd.y + 0.535) / 0.06)));
+    float lip = max(lipUp, lipDown) * onFace;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.84, 0.5, 0.5), lip * 0.75);
+    float mouthY = -0.478 + 0.035 * (hd.x / 0.19) * (hd.x / 0.19);
+    float mouth = (1.0 - smoothstep(0.004, 0.014, abs(hd.y - mouthY))) * (1.0 - smoothstep(0.13, 0.19, ax)) * onFace;
+    diffuseColor.rgb *= 1.0 - 0.5 * mouth;
+    // blush nas maçãs
+    float blush = exp(-pow((ax - 0.46) / 0.17, 2.0) - pow((hd.y + 0.14) / 0.13, 2.0)) * onFace;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.0, 0.78, 0.76), blush * 0.4);
+    // sobrancelhas: arco mais grosso perto do nariz
+    float bx = (ax - 0.32) / 0.2;
+    float browY = 0.305 + 0.05 * (1.0 - bx * bx) - 0.012 * bx;
+    float browW = mix(0.026, 0.012, clamp(bx * 0.5 + 0.5, 0.0, 1.0));
+    float brow = (1.0 - smoothstep(browW * 0.6, browW, abs(hd.y - browY))) * (1.0 - smoothstep(0.75, 1.0, abs(bx))) * onFace;
+    diffuseColor.rgb = mix(diffuseColor.rgb, uAccent, brow * 0.8);
+    // cílios: um traço curvo para baixo, puxado no canto de fora
+    float ex = (ax - 0.31) / 0.15;
+    float lashY = 0.115 - 0.04 * (1.0 - ex * ex) + 0.02 * smoothstep(0.4, 1.0, ex);
+    float lash = (1.0 - smoothstep(0.006, 0.016, abs(hd.y - lashY))) * (1.0 - smoothstep(0.8, 1.05, abs(ex))) * onFace;
+    diffuseColor.rgb = mix(diffuseColor.rgb, uAccent * 0.5, lash * 0.9);
+    // pálpebra um pouco mais escura
+    float lid = (1.0 - smoothstep(0.0, 0.05, hd.y - lashY)) * step(lashY, hd.y) * (1.0 - smoothstep(0.7, 1.0, abs(ex))) * onFace;
+    diffuseColor.rgb *= 1.0 - 0.12 * lid;
+  }
+`
+
+// Fios do cabelo: listras finas que somem quando ficam pequenas demais na tela (não tremem)
+const HAIR_FIBERS = /* glsl */ `
+  {
+    float phase = vStrand;
+    float fiber = 0.5 + 0.5 * sin(phase * 6.2831853);
+    float group = bHash(vec3(floor(phase), 0.0, 1.0));
+    float fade = smoothstep(0.25, 0.6, fwidth(phase));
+    diffuseColor.rgb *= mix(0.84 + 0.22 * fiber, 1.0, fade) * (0.95 + 0.1 * group);
+  }
+`
+
+function bodyMaterial(part: BodyPart, porcelain: boolean, color: string, accent: string, uniforms: BodyUniforms) {
+  const material = porcelain
+    ? new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: 0.38,
+        metalness: 0.15,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.25,
+        sheen: 0.3,
+        sheenColor: new THREE.Color('#fff1dc'),
+      })
+    : part === 'hair'
+      ? new THREE.MeshPhysicalMaterial({
+          color,
+          roughness: 0.42,
+          clearcoat: 0.3,
+          clearcoatRoughness: 0.35,
+          sheen: 0.7,
+          sheenRoughness: 0.35,
+          sheenColor: new THREE.Color(color).lerp(new THREE.Color('#e8c9a0'), 0.35),
+        })
+      : new THREE.MeshPhysicalMaterial({
+          // pele: fosca, com um brilho aveludado quente nas bordas (lembra a luz atravessando a pele)
+          color,
+          roughness: 0.55,
+          clearcoat: 0.1,
+          clearcoatRoughness: 0.5,
+          sheen: 0.55,
+          sheenRoughness: 0.5,
+          sheenColor: new THREE.Color(color).lerp(new THREE.Color('#ff9c84'), 0.55),
+        })
+  const accentColor = new THREE.Color(accent)
+  const paint = !porcelain && part === 'face'
+  const fibers = !porcelain && part === 'hair'
   material.userData.uniforms = uniforms
-  material.customProgramCacheKey = () => 'anghel-body-1'
+  material.customProgramCacheKey = () => `anghel-body-2:${porcelain ? 'p' : 's'}:${part}`
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms)
+    Object.assign(shader.uniforms, uniforms, { uAccent: { value: accentColor } })
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBody;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBody = position;')
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vBody;
+        ${paint ? 'attribute vec3 aFace;\nvarying vec3 vFace;' : ''}
+        ${fibers ? 'attribute float aStrand;\nvarying float vStrand;' : ''}`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vBody = position;
+        ${paint ? 'vFace = aFace;' : ''}
+        ${fibers ? 'vStrand = aStrand;' : ''}`,
+      )
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
@@ -370,7 +456,10 @@ export function createBodyMaterial(color = '#c4aa8a') {
         uniform float uRise;
         uniform float uSketch;
         uniform vec3 uGold;
+        uniform vec3 uAccent;
         varying vec3 vBody;
+        ${paint ? 'varying vec3 vFace;' : ''}
+        ${fibers ? 'varying float vStrand;' : ''}
         float bHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }`,
       )
       .replace(
@@ -382,11 +471,26 @@ export function createBodyMaterial(color = '#c4aa8a') {
         float line = 1.0 - smoothstep(0.0025, 0.006, ringD);
         if (uSketch > 0.001 && line < 0.5 && bHash(floor(vBody * 90.0)) < uSketch) discard;`,
       )
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${paint ? FACE_PAINT : ''}${fibers ? HAIR_FIBERS : ''}`)
       .replace(
         '#include <emissivemap_fragment>',
         /* glsl */ `#include <emissivemap_fragment>
+        ${porcelain || part === 'hair' ? '' : '// luz que atravessa a pele: sombras um pouco mais quentes\n totalEmissiveRadiance += diffuseColor.rgb * vec3(0.09, 0.04, 0.03);'}
         totalEmissiveRadiance += uGold * (line * uSketch * 1.6 + (1.0 - smoothstep(0.0, 0.08, uRise - vBody.y)) * 2.0);`,
       )
   }
   return material
+}
+
+// Os três materiais do manequim (corpo, rosto e cabelo) dividem os uniforms da abertura
+export function createBodyMaterials(tone: { skin: string; hair: string | null }): BodyMaterials {
+  const uniforms: BodyUniforms = { uRise: { value: 10 }, uSketch: { value: 0 }, uGold: { value: new THREE.Color('#ffcf8a') } }
+  const porcelain = !tone.hair
+  const accent = tone.hair ?? '#3a2316'
+  return {
+    uniforms,
+    body: bodyMaterial('body', porcelain, tone.skin, accent, uniforms),
+    face: bodyMaterial('face', porcelain, tone.skin, accent, uniforms),
+    hair: bodyMaterial('hair', porcelain, tone.hair ?? tone.skin, accent, uniforms),
+  }
 }

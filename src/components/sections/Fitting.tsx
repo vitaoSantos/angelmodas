@@ -5,6 +5,7 @@ import { useIntro } from '../../context/IntroContext'
 import { useLook } from '../../context/LookContext'
 import { brand, whatsappUrl } from '../../data/brand'
 import { sizes as allSizes, sortSizes } from '../../data/catalog'
+import { skinTones } from '../../data/skin'
 import { useIsDesktop, useReducedMotion } from '../../hooks/useMediaQuery'
 import { useSpinDrag } from '../../hooks/useSpinDrag'
 import { priceLabel, productSlots } from '../../lib/products'
@@ -47,7 +48,7 @@ const tabOf = (p: Product): Tab => {
 
 export function Fitting() {
   const look = useLook()
-  const { items, pieces, wearable, wear, isWorn, size, setSize, surprise, lines } = look
+  const { items, pieces, wearable, wear, isWorn, size, setSize, skin, setSkin, surprise, lines } = look
   const desktop = useIsDesktop()
   const reduced = useReducedMotion()
   const scrollTo = useScrollTo()
@@ -156,6 +157,7 @@ export function Fitting() {
                       active={visible || busy === 'video'}
                       mobile={!desktop}
                       reduced={reduced}
+                      skin={skin}
                       onReady={onStageReady}
                     />
                   </Suspense>
@@ -173,6 +175,27 @@ export function Fitting() {
                 <span className="hidden items-center gap-1.5 rounded-full border border-line bg-ink/60 px-3 py-1.5 text-xs text-muted sm:flex">
                   <TbHandFinger aria-hidden /> arraste para girar
                 </span>
+              </div>
+              {/* Tom de pele do manequim */}
+              <div
+                role="radiogroup"
+                aria-label="Tom de pele do manequim"
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 rounded-full border border-line bg-ink/60 p-1.5 sm:right-5"
+              >
+                {skinTones.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={skin === t.id}
+                    aria-label={`Pele ${t.label.toLowerCase()}`}
+                    title={t.label}
+                    onClick={() => setSkin(t.id)}
+                    className={`size-6 rounded-full border-2 transition-transform sm:size-7 ${skin === t.id ? 'scale-110 border-cream' : 'border-transparent hover:scale-105'}`}
+                    style={{ background: t.hair ? `linear-gradient(160deg, ${t.hair} 0 32%, ${t.skin} 32%)` : t.skin }}
+                  />
+                ))}
               </div>
               <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-ink-2/90 to-transparent" />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-2 p-4 sm:p-5">

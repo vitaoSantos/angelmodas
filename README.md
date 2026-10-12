@@ -13,7 +13,7 @@ Tudo é feito em código (sem modelos 3D prontos): o manequim, as roupas e os te
 | Momento | O que acontece |
 | --- | --- |
 | **Tela de carregamento** | A cortina de veludo do provador; um fio dourado desenha o manequim do logo e o contador vai a 100%. Quando o 3D está pronto, a cortina abre para os lados. |
-| **Construção** (automática) | O manequim nasce do chão em curvas de nível douradas (como um croqui), vira porcelana champanhe e a roupa é "costurada" de cima para baixo com um brilho dourado. |
+| **Construção** (automática) | O manequim nasce do chão em curvas de nível douradas (como um croqui), ganha a pele e o cabelo e a roupa é "costurada" de cima para baixo com um brilho dourado. |
 | **01 · A peça** | As peças se afastam do corpo (vista explodida) com anotações escritas à mão. |
 | **02 · O tecido** | A câmera chega perto e o tecido troca: linho, tricô, canelado, cetim, renda. |
 | **03 · A cor** | A cor nova escorre pela roupa de cima para baixo: chocolate, manteiga, rosé, terracota… |
@@ -21,13 +21,13 @@ Tudo é feito em código (sem modelos 3D prontos): o manequim, as roupas e os te
 
 ### Catálogo em arara 3D
 
-As peças cadastradas no painel ficam penduradas em cabides dourados num varão. Arrastar (mouse, dedo, trackpad lateral ou setas) passa as peças, e os cabides **balançam com o movimento**. Cada cabide tem uma etiqueta de papel com nome, cores e preço. Tocar numa peça abre a ficha: fotos, cores, tamanhos, "Quero esta peça" (WhatsApp) e **"No manequim 3D"**, que mostra a peça vestida no manequim, na cor escolhida. Peça sem foto aparece no cabide como uma foto do próprio manequim vestido com ela. Também dá para ver o catálogo em lista.
+As peças cadastradas no painel ficam penduradas em cabides dourados num varão. Arrastar (mouse, dedo, trackpad lateral ou setas) passa as peças, e os cabides **balançam com o movimento**. Cada cabide tem uma etiqueta de papel com nome, cores e o preço em destaque. Tocar numa peça abre a ficha: fotos, cores, tamanhos, "Quero esta peça" (WhatsApp) e **"No manequim 3D"**, que mostra a peça vestida no manequim, na cor escolhida. Peça sem foto aparece no cabide como uma foto do próprio manequim vestido com ela. Também dá para ver o catálogo em lista.
 
 ### Provador 3D ("Monte o seu look")
 
-A cliente escolhe a parte de cima, a de baixo, um vestido ou um conjunto, e o manequim veste na hora (com a costura dourada). Troca as cores de cada peça, escolhe o tamanho e pede pelo WhatsApp com o look já escrito na mensagem. Dá para **tirar uma foto** (formato do feed) e **gravar um vídeo de 360°** (formato dos stories, com o nome da loja e das peças) e compartilhar direto pelo celular.
+A cliente escolhe a parte de cima, a de baixo, um vestido ou um conjunto, e o manequim veste na hora (com a costura dourada). O manequim tem rosto esculpido de leve e cabelo preso num coque, e a cliente escolhe o **tom de pele** (clara, média, morena, negra ou o manequim de porcelana clássico) nas bolinhas ao lado do manequim; o site lembra a escolha e usa o mesmo tom na abertura e na arara. Troca as cores de cada peça, escolhe o tamanho e pede pelo WhatsApp com o look já escrito na mensagem. Dá para **tirar uma foto** (formato do feed) e **gravar um vídeo de 360°** (formato dos stories, com o nome da loja e das peças) e compartilhar direto pelo celular.
 
-**Como a peça vira 3D:** no cadastro, cada peça escolhe um **molde** (regata, ombro só, frente única, camisa, pantalona, saia midi, vestido longo com fenda… são 27) e um **tecido** (malha, canelado, tricô, linho, jeans, cetim, crepe, suplex, renda, estampado). O molde dá o formato; o tecido muda o brilho e a textura (nervuras do canelado, pontos do tricô, trama do linho, sarja do jeans, furinhos da renda). No painel, tocando no tecido da foto, o conta-gotas tira **a cor certinha** e um **recorte do tecido**, que vira a textura da peça no manequim.
+**Como a peça vira 3D:** no cadastro, cada peça escolhe um **molde** (regata, ombro só, frente única, camisa, pantalona, saia midi, vestido longo com fenda… são 27) e um **tecido** (malha, canelado, tricô, linho, jeans, cetim, crepe, suplex, renda, estampado). O molde dá o formato; o tecido muda o brilho e a textura (nervuras do canelado, pontos do tricô, trama do linho, sarja do jeans, furinhos da renda). No painel, tocando no tecido da foto, o conta-gotas tira **a cor certinha** e um **recorte do tecido**, que vira a textura da peça no manequim. Ou, com um toque em **Analisar a foto**, a IA (Claude) olha a foto e preenche sozinha nome, categoria, molde, tecido, cores, descrição e o recorte do tecido; é só conferir na prévia 3D e salvar.
 
 Enquanto o catálogo do painel estiver vazio, o site mostra uma **coleção de exemplo** (inspirada nos posts do Instagram, sem preço) para a vitrine não ficar vazia. Ela some sozinha quando a primeira peça for cadastrada.
 
@@ -42,7 +42,7 @@ npm run typecheck
 
 No `npm run dev` as Netlify Functions e o Netlify Blobs são simulados pelo `@netlify/vite-plugin` (os dados de teste ficam na pasta `.netlify/`, fora do git). Para entrar no painel localmente, crie um arquivo `.env` com `ADMIN_PASSWORD=uma-senha-de-teste`.
 
-Só no `npm run dev` existe também o **laboratório dos moldes**, em `/moldes`: todos os moldes vestidos lado a lado, para ajustar o desenho deles (`?fit=regata,camisa` mostra só alguns; `?view=back` mostra as costas).
+Só no `npm run dev` existe também o **laboratório dos moldes**, em `/moldes`: todos os moldes vestidos lado a lado, para ajustar o desenho deles (`?fit=regata,camisa` mostra só alguns; `?view=back` mostra as costas; `?skin=todos` alterna os tons de pele).
 
 ## Publicando no Netlify
 
@@ -50,13 +50,15 @@ O `netlify.toml` já está pronto (build `npm run build`, pasta `dist`, Node 22,
 
 **Senha do painel (obrigatório para usar o `/admin`):** em **Site configuration → Environment variables → Add a variable**, crie `ADMIN_PASSWORD` com uma senha forte e depois faça um novo deploy (**Deploys → Trigger deploy**). Sem ela o painel avisa que não está configurado; o resto do site funciona normalmente.
 
+**Análise da foto com IA (opcional):** o botão **Analisar a foto** do painel usa a API do Claude. Crie uma chave em [platform.claude.com](https://platform.claude.com) (**API keys**), coloque créditos na conta e crie no Netlify a variável `ANTHROPIC_API_KEY` com a chave (mesmo caminho da senha), depois faça um novo deploy. Cada análise custa poucos centavos (uma foto reduzida e uma resposta curta). A IA só sugere: nada é salvo até você conferir e tocar em salvar. Sem a variável, o botão avisa que não está configurado e o resto do painel funciona normalmente.
+
 As mensagens do formulário aparecem em **Netlify → Forms → pedido** (com o look montado no provador, quando a cliente montou um). Para receber por e-mail: **Forms → Form notifications → Add notification**.
 
 ## Painel (`/admin`)
 
 Endereço: `seusite.netlify.app/admin` (não aparece no menu e não é indexado pelo Google). Entra com a senha do `ADMIN_PASSWORD`.
 
-- **Catálogo**: cadastre a peça com até 6 fotos (dá para fotografar direto do celular; o painel reduz a foto, corrige a rotação e remove localização e outros dados da câmera). Nome, categoria, tecido, **molde no provador 3D** (conjunto escolhe o de cima e o de baixo), cores (atalhos com nomes ou qualquer cor; **toque no tecido da foto** para tirar a cor e o recorte do tecido), tamanhos, preço (opcional), descrição e as chaves **Novidade**, **Esgotada** e **Esconder do site**. Uma **prévia 3D** mostra na hora como a peça fica no manequim. Depois dá para editar, trocar a capa, incluir ou apagar fotos e apagar a peça. Cabem até 300 peças.
+- **Catálogo**: cadastre a peça com até 6 fotos (dá para fotografar direto do celular; o painel reduz a foto, corrige a rotação e remove localização e outros dados da câmera). Nome, categoria, tecido, **molde no provador 3D** (conjunto escolhe o de cima e o de baixo), cores (atalhos com nomes ou qualquer cor; **toque no tecido da foto** para tirar a cor e o recorte do tecido), tamanhos, preço (opcional), descrição e as chaves **Novidade**, **Esgotada** e **Esconder do site**. Uma **prévia 3D** mostra na hora como a peça fica no manequim. Com a variável `ANTHROPIC_API_KEY`, o botão **Analisar a foto** preenche o cadastro a partir da foto. Depois dá para editar, trocar a capa, incluir ou apagar fotos e apagar a peça. Cabem até 300 peças.
 - **Mural de clientes**: fotos de clientes usando as peças (com a autorização delas), com título, look e data opcionais. Cabem até 400 fotos.
 - **Opções do site**: esconde uma categoria inteira (fora de estação, por exemplo) e liga/desliga os preços no site. Pelo menos uma categoria fica sempre ligada.
 - **Comunidade**: visitas (total, hoje, 7 e 30 dias, e um gráfico dos últimos 14 dias) e os recados: aprovar, tirar do site ou apagar. Uma chave escolhe se os recados novos entram direto ou esperam aprovação (o padrão é esperar). A aba mostra quantos estão esperando.
