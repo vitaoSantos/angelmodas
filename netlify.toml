@@ -1,0 +1,27 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Catálogo, mural de clientes, recados e opções do site (Netlify Functions + Netlify Blobs).
+# A senha do painel (/admin) fica na variável de ambiente ADMIN_PASSWORD.
+[functions]
+  directory = "netlify/functions"
+
+# O painel é uma página do próprio site (o app decide o que mostrar pelo endereço)
+[[redirects]]
+  from = "/admin"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

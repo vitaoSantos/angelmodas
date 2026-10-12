@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Anghel Modas · Moda feminina</title>
+    <meta
+      name="description"
+      content="Anghel Modas: moda feminina com vestidos, blusas, tricô, conjuntos e fitness. Veja o catálogo em 3D, monte o seu look no provador virtual e peça pelo WhatsApp."
+    />
+    <meta name="theme-color" content="#0e0c0b" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content="Anghel Modas · Moda feminina" />
+    <meta
+      property="og:description"
+      content="Entre no provador: monte o seu look no manequim 3D com as peças da loja e peça pelo WhatsApp."
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Formulário estático para o Netlify Forms detectar no deploy (o formulário de verdade é o React, em Contato) -->
+    <form name="pedido" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="text" name="nome" />
+      <input type="tel" name="whatsapp" />
+      <input type="email" name="email" />
+      <input type="text" name="tamanho" />
+      <input type="text" name="look" />
+      <textarea name="mensagem"></textarea>
+      <input name="bot-field" />
+    </form>
+
+    <noscript>Ative o JavaScript para ver a vitrine da Anghel Modas.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

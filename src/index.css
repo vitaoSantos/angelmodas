@@ -1,0 +1,195 @@
+@import "tailwindcss";
+@import "@fontsource-variable/cormorant-garamond/wght.css";
+@import "@fontsource-variable/cormorant-garamond/wght-italic.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource/parisienne/latin-400.css";
+@import "lenis/dist/lenis.css";
+
+@theme {
+  /* Fundo: preto quente, como o logo */
+  --color-ink: #0e0c0b;
+  --color-ink-2: #161311;
+  --color-ink-3: #211c19;
+  /* Texto */
+  --color-cream: #f5ede2;
+  --color-muted: #bcae9f;
+  --color-faint: #85786c;
+  --color-line: rgb(245 237 226 / 0.1);
+  --color-line-strong: rgb(245 237 226 / 0.2);
+  /* Acentos: dourado champanhe do logo e um rosé da coleção */
+  --color-gold: #d8b98a;
+  --color-gold-soft: #ecd8b4;
+  --color-gold-deep: #a9834f;
+  --color-rose: #e3a69f;
+  --color-rose-soft: #f2c7c1;
+  --color-wine: #4a1822;
+  --color-mint: #9fd8bf;
+
+  --font-display: "Cormorant Garamond Variable", ui-serif, Georgia, serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-script: "Parisienne", "Brush Script MT", cursive;
+
+  --ease-expo: cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+@utility container-x {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 80rem;
+  padding-inline: 1.25rem;
+  @media (width >= 40rem) {
+    padding-inline: 2rem;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-ink);
+    overflow-x: clip;
+  }
+
+  body {
+    background: var(--color-ink);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background: rgb(216 185 138 / 0.45);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  /* Seções âncora não ficam escondidas atrás do menu fixo */
+  section[id] {
+    scroll-margin-top: 5rem;
+  }
+}
+
+@layer components {
+  /* Cormorant fica fina demais em tamanhos pequenos: os títulos usam peso médio */
+  .font-display {
+    font-weight: 500;
+  }
+  .italic-display {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .text-gradient {
+    background: linear-gradient(100deg, var(--color-gold-soft) 0%, var(--color-gold) 45%, var(--color-rose) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .bg-gradient-brand {
+    background: linear-gradient(100deg, var(--color-gold-soft) 0%, var(--color-gold) 50%, var(--color-rose) 100%);
+  }
+
+  /* Veludo da cortina do provador */
+  .bg-velvet {
+    background:
+      repeating-linear-gradient(90deg, rgb(0 0 0 / 0.38) 0px, rgb(255 255 255 / 0.05) 34px, rgb(0 0 0 / 0.3) 70px, rgb(255 255 255 / 0.03) 104px, rgb(0 0 0 / 0.38) 140px),
+      linear-gradient(180deg, #5c1f2b 0%, #3f141d 55%, #2a0d13 100%);
+  }
+
+  /* Fundo do menu: sem backdrop-filter. Desfocar o canvas 3D que está por trás obriga o
+     navegador a refazer o desfoque a cada quadro, e isso pesa muito. */
+  .glass {
+    background: rgb(22 19 17 / 0.92);
+  }
+
+  /* Borda em gradiente para cards */
+  .border-gradient {
+    position: relative;
+  }
+  .border-gradient::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(140deg, rgb(216 185 138 / 0.55), rgb(255 255 255 / 0.05) 40%, rgb(227 166 159 / 0.45));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .marquee-track {
+    animation: marquee var(--marquee-duration, 40s) linear infinite;
+  }
+  .marquee-track[data-reverse="true"] {
+    animation-direction: reverse;
+  }
+
+  /* Loader: o fio dourado desenha o manequim (stroke animado pelo próprio navegador) */
+  .thread-draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: thread-draw 1.7s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+  }
+  .logo-pop {
+    animation: logo-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .sway {
+    transform-origin: 50% 0%;
+    animation: sway 3.2s ease-in-out infinite;
+  }
+
+  /* Barras de rolagem discretas nas listas que rolam de lado */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes thread-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes logo-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .sway { animation: none; }
+  .thread-draw { animation-duration: 0.01s; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+}
