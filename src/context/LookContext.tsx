@@ -1,33 +1,36 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { WornPiece } from '../components/three/Mannequin'
-import { DEFAULT_SKIN, skinTones } from '../data/skin'
-import { canWear, priceLabel, productSlots, wornPieces } from '../lib/products'
+import { canWear, priceLabel, productSlots } from '../lib/products'
 import type { Product } from '../lib/siteTypes'
 import { useSiteData } from './SiteDataContext'
 
-// O look montado no provador 3D. Fica aqui para o catálogo (botão "provar"), o provador e o
-// formulário de contato usarem o mesmo look.
+// O look montado no provador ("Monte o seu look"). Fica aqui para o catálogo (botão "provar"),
+// o provador e o formulário de contato usarem o mesmo look.
+// O look tem uma parte de cima e uma de baixo, ou uma peça inteira (vestido, macacão ou conjunto).
 
 type Pick = { id: string; color: number }
-type LookSlots = { top: Pick | null; bottom: Pick | null; full: Pick | null }
+type LookSlots = { top: Pick | null; bottom: Pick | null; whole: Pick | null }
 
 export type WornItem = { product: Product; color: number; label: string }
 
+// As faixas do quadro do provador: cima e baixo, ou uma faixa só com a peça inteira
+export type Row = 'top' | 'bottom' | 'whole'
+
 type LookState = {
-  look: LookSlots
   size: string
   setSize: (size: string) => void
-  // tom de pele do manequim (o site lembra neste navegador)
-  skin: string
-  setSkin: (skin: string) => void
   wear: (product: Product, color?: number) => void
   setColor: (productId: string, color: number) => void
   takeOff: (productId: string) => void
   surprise: () => void
+  // passa para a próxima (1) ou anterior (-1) peça daquela faixa
+  cycle: (row: Row, step: 1 | -1) => void
   isWorn: (productId: string) => boolean
-  // o que está vestido agora (um conjunto aparece uma vez só)
+  // o que está em cada faixa agora
+  board: Record<Row, { product: Product; color: number } | null>
+  // as peças que podem entrar em cada faixa
+  options: Record<Row, Product[]>
+  // o que está vestido agora, para as listas e a mensagem
   items: WornItem[]
-  pieces: WornPiece[]
   wearable: Product[]
   touched: boolean
   // look em linhas (mensagem do WhatsApp) e numa linha só (formulário)
@@ -37,50 +40,47 @@ type LookState = {
 
 const LookContext = createContext<LookState | null>(null)
 
-const EMPTY: LookSlots = { top: null, bottom: null, full: null }
+const EMPTY: LookSlots = { top: null, bottom: null, whole: null }
 
-const SKIN_KEY = 'anghel-pele'
-
-function readSkin() {
-  try {
-    const saved = localStorage.getItem(SKIN_KEY)
-    if (saved && skinTones.some((t) => t.id === saved)) return saved
-  } catch {
-    // sem acesso ao armazenamento: usa o tom padrão
-  }
-  return DEFAULT_SKIN
-}
-
-const firstWith = (list: Product[], slot: 'top' | 'bottom' | 'full', single = true) =>
-  list.find((p) => {
-    const slots = productSlots(p)
-    return slots.includes(slot) && (!single || slots.length === 1)
-  })
-
-// Primeiro look: uma parte de cima com uma de baixo (ou um vestido, se não tiver as duas)
-function defaultLook(list: Product[]): LookSlots {
-  const top = firstWith(list, 'top')
-  const bottom = firstWith(list, 'bottom')
-  if (top && bottom) return { top: { id: top.id, color: 0 }, bottom: { id: bottom.id, color: 0 }, full: null }
-  const full = firstWith(list, 'full')
-  if (full) return { ...EMPTY, full: { id: full.id, color: 0 } }
-  const set = list.find((p) => productSlots(p).length === 2)
-  if (set) return { top: { id: set.id, color: 0 }, bottom: { id: set.id, color: 0 }, full: null }
-  return EMPTY
-}
-
-function wearOn(current: LookSlots, product: Product, color: number, list: Product[]): LookSlots {
+// Em qual faixa a peça entra: conjunto e peça inteira ficam na faixa única
+export function rowOf(product: Product): Row | null {
   const slots = productSlots(product)
+  if (slots.includes('full') || slots.length === 2) return 'whole'
+  if (slots[0] === 'top') return 'top'
+  if (slots[0] === 'bottom') return 'bottom'
+  return null
+}
+
+const LABELS: Record<Row, string> = { top: 'Parte de cima', bottom: 'Parte de baixo', whole: 'Peça inteira' }
+
+function optionsOf(list: Product[]): Record<Row, Product[]> {
+  return {
+    top: list.filter((p) => rowOf(p) === 'top'),
+    bottom: list.filter((p) => rowOf(p) === 'bottom'),
+    whole: list.filter((p) => rowOf(p) === 'whole'),
+  }
+}
+
+// Primeiro look: uma parte de cima com uma de baixo (ou uma peça inteira, se não tiver as duas)
+function defaultLook(options: Record<Row, Product[]>): LookSlots {
+  const [top] = options.top
+  const [bottom] = options.bottom
+  if (top && bottom) return { top: { id: top.id, color: 0 }, bottom: { id: bottom.id, color: 0 }, whole: null }
+  const [whole] = options.whole
+  if (whole) return { ...EMPTY, whole: { id: whole.id, color: 0 } }
+  return { top: top ? { id: top.id, color: 0 } : null, bottom: bottom ? { id: bottom.id, color: 0 } : null, whole: null }
+}
+
+function wearOn(current: LookSlots, product: Product, color: number, options: Record<Row, Product[]>): LookSlots {
+  const row = rowOf(product)
   const pick = { id: product.id, color }
-  if (slots.includes('full')) return { ...current, full: pick }
-  if (slots.length === 2) return { top: pick, bottom: pick, full: null }
-  const slot = slots[0] as 'top' | 'bottom'
-  const next: LookSlots = { ...current, [slot]: pick, full: null }
-  // sem a outra parte, veste a primeira que tiver no catálogo (se trocar uma parte de um conjunto,
-  // a outra parte dele continua)
-  const other = slot === 'top' ? 'bottom' : 'top'
+  if (!row) return current
+  if (row === 'whole') return { ...EMPTY, whole: pick }
+  const next: LookSlots = { ...current, [row]: pick, whole: null }
+  // sem a outra parte, completa com a primeira do catálogo
+  const other = row === 'top' ? 'bottom' : 'top'
   if (!next[other]) {
-    const fallback = firstWith(list, other)
+    const [fallback] = options[other]
     if (fallback) next[other] = { id: fallback.id, color: 0 }
   }
   return next
@@ -89,33 +89,47 @@ function wearOn(current: LookSlots, product: Product, color: number, list: Produ
 export function LookProvider({ children }: { children: ReactNode }) {
   const { catalog } = useSiteData()
   const wearable = useMemo(() => catalog.filter(canWear), [catalog])
+  const options = useMemo(() => optionsOf(wearable), [wearable])
   const byId = useMemo(() => new Map(wearable.map((p) => [p.id, p])), [wearable])
-  const [look, setLook] = useState<LookSlots>(() => defaultLook(wearable))
+  const [look, setLook] = useState<LookSlots>(() => defaultLook(options))
   const [size, setSizeState] = useState('M')
-  const [skin, setSkinState] = useState(readSkin)
   const [touched, setTouched] = useState(false)
 
   // Catálogo mudou (carregou do painel): se alguma peça vestida sumiu, volta para o look inicial
   useEffect(() => {
     setLook((current) => {
-      const picks = [current.top, current.bottom, current.full].filter((p): p is Pick => Boolean(p))
-      return picks.length && picks.every((p) => byId.has(p.id)) ? current : defaultLook(wearable)
+      const picks = [current.top, current.bottom, current.whole].filter((p): p is Pick => Boolean(p))
+      return picks.length && picks.every((p) => byId.has(p.id)) ? current : defaultLook(options)
     })
-  }, [byId, wearable])
+  }, [byId, options])
 
   const wear = useCallback(
     (product: Product, color = 0) => {
       setTouched(true)
-      setLook((current) => wearOn(current, product, color, wearable))
+      setLook((current) => wearOn(current, product, color, options))
     },
-    [wearable],
+    [options],
+  )
+
+  const cycle = useCallback(
+    (row: Row, step: 1 | -1) => {
+      const list = options[row]
+      if (!list.length) return
+      setTouched(true)
+      setLook((current) => {
+        const at = list.findIndex((p) => p.id === current[row]?.id)
+        const next = list[(at + step + list.length) % list.length]
+        return wearOn(current, next, 0, options)
+      })
+    },
+    [options],
   )
 
   const setColor = useCallback((productId: string, color: number) => {
     setTouched(true)
     setLook((current) => {
       const change = (p: Pick | null) => (p && p.id === productId ? { ...p, color } : p)
-      return { top: change(current.top), bottom: change(current.bottom), full: change(current.full) }
+      return { top: change(current.top), bottom: change(current.bottom), whole: change(current.whole) }
     })
   }, [])
 
@@ -123,73 +137,43 @@ export function LookProvider({ children }: { children: ReactNode }) {
     setTouched(true)
     setLook((current) => {
       const off = (p: Pick | null) => (p && p.id === productId ? null : p)
-      return { top: off(current.top), bottom: off(current.bottom), full: off(current.full) }
+      return { top: off(current.top), bottom: off(current.bottom), whole: off(current.whole) }
     })
   }, [])
 
   const surprise = useCallback(() => {
     setTouched(true)
     const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)]
-    const fulls = wearable.filter((p) => productSlots(p).includes('full'))
-    const tops = wearable.filter((p) => productSlots(p).includes('top'))
-    const bottoms = wearable.filter((p) => productSlots(p).includes('bottom') && productSlots(p).length === 1)
     const color = (p: Product) => Math.floor(Math.random() * p.colors.length)
     setLook(() => {
-      if (fulls.length && (Math.random() < 0.3 || !tops.length)) {
-        const p = pick(fulls)
-        return { ...EMPTY, full: { id: p.id, color: color(p) } }
+      const pair = options.top.length && options.bottom.length
+      if (options.whole.length && (Math.random() < 0.35 || !pair)) {
+        const p = pick(options.whole)
+        return { ...EMPTY, whole: { id: p.id, color: color(p) } }
       }
-      const top = pick(tops)
-      if (!top) return defaultLook(wearable)
-      if (productSlots(top).length === 2) return { top: { id: top.id, color: color(top) }, bottom: { id: top.id, color: color(top) }, full: null }
-      const bottom = pick(bottoms)
-      return { top: { id: top.id, color: color(top) }, bottom: bottom ? { id: bottom.id, color: color(bottom) } : null, full: null }
+      const top = pick(options.top)
+      const bottom = pick(options.bottom)
+      if (!top && !bottom) return defaultLook(options)
+      return { top: top ? { id: top.id, color: color(top) } : null, bottom: bottom ? { id: bottom.id, color: color(bottom) } : null, whole: null }
     })
-  }, [wearable])
+  }, [options])
 
   const setSize = useCallback((value: string) => {
     setTouched(true)
     setSizeState(value)
   }, [])
 
-  const setSkin = useCallback((value: string) => {
-    setSkinState(value)
-    try {
-      localStorage.setItem(SKIN_KEY, value)
-    } catch {
-      // navegação privada: vale só nesta visita
-    }
-  }, [])
-
   const value = useMemo<LookState>(() => {
-    const picks = look.full ? [look.full] : [look.top, look.bottom]
-    const items: WornItem[] = []
-    for (const pick of picks) {
-      const product = pick && byId.get(pick.id)
-      if (!product || items.some((i) => i.product.id === product.id)) continue
-      const slots = productSlots(product)
-      const wholeSet = look.top?.id === product.id && look.bottom?.id === product.id
-      const label =
-        slots.length === 2
-          ? wholeSet
-            ? 'Conjunto'
-            : look.top?.id === product.id
-              ? 'Parte de cima do conjunto'
-              : 'Parte de baixo do conjunto'
-          : slots[0] === 'full'
-            ? 'Peça inteira'
-            : slots[0] === 'top'
-              ? 'Parte de cima'
-              : 'Parte de baixo'
-      items.push({ product, color: pick.color, label })
+    const at = (p: Pick | null) => {
+      const product = p && byId.get(p.id)
+      return product ? { product, color: Math.min(p.color, Math.max(0, product.colors.length - 1)) } : null
     }
-    const pieces = items.flatMap((i) => {
-      const all = wornPieces(i.product, i.color)
-      // de um conjunto, veste só a parte que está no look (ex.: a camisa do conjunto com outra calça)
-      if (productSlots(i.product).length === 2 && !look.full) {
-        return all.filter((_, k) => (k === 0 ? look.top?.id === i.product.id : look.bottom?.id === i.product.id))
-      }
-      return all
+    const board = look.whole ? { top: null, bottom: null, whole: at(look.whole) } : { top: at(look.top), bottom: at(look.bottom), whole: null }
+    const items: WornItem[] = (['whole', 'top', 'bottom'] as const).flatMap((row) => {
+      const worn = board[row]
+      if (!worn) return []
+      const label = row === 'whole' && productSlots(worn.product).length === 2 ? 'Conjunto' : LABELS[row]
+      return [{ ...worn, label }]
     })
     const lines = [
       ...items.map((i) => {
@@ -200,24 +184,23 @@ export function LookProvider({ children }: { children: ReactNode }) {
       `Tamanho: ${size}`,
     ]
     return {
-      look,
       size,
       setSize,
-      skin,
-      setSkin,
       wear,
       setColor,
       takeOff,
       surprise,
+      cycle,
       isWorn: (id: string) => items.some((i) => i.product.id === id),
+      board,
+      options,
       items,
-      pieces,
       wearable,
       touched,
       lines,
       summary: lines.join(' | '),
     }
-  }, [look, size, setSize, skin, setSkin, wear, setColor, takeOff, surprise, byId, wearable, touched])
+  }, [look, size, setSize, wear, setColor, takeOff, surprise, cycle, byId, options, wearable, touched])
 
   return <LookContext.Provider value={value}>{children}</LookContext.Provider>
 }

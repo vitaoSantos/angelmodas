@@ -1,18 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Category } from '../data/catalog'
-import { sampleProducts } from '../data/sample'
 import { fetchSiteData, postVisit } from '../lib/api'
 import { availableCategories, categoryOn, emptySettings, productOrder, type CommunityComment, type Product, type SiteData } from '../lib/siteTypes'
 
 type SiteDataState = SiteData & {
   loaded: boolean
-  // peças que aparecem no site: as do painel (nas categorias ligadas) ou, se o catálogo do painel
-  // estiver vazio, a coleção de exemplo. Fica vazio até os dados chegarem (sem "piscar" o exemplo).
+  // peças que aparecem no site: as do painel, nas categorias ligadas (vazio até os dados chegarem)
   catalog: Product[]
-  // peças da abertura: igual ao catálogo, mas com a coleção de exemplo enquanto os dados não chegam
-  // (a abertura é preparada atrás da tela de carregamento e precisa de roupa para vestir)
-  showcase: Product[]
-  sample: boolean
   categories: Category[]
   // recado publicado na hora (painel em "publicar direto"): entra na lista sem recarregar
   addComment: (comment: CommunityComment) => void
@@ -45,7 +39,7 @@ function markCounted() {
 }
 
 // Opções do painel, catálogo, fotos do mural, recados e visitas. Se a função não responder (rodando
-// sem o Netlify, por exemplo), o site segue com os padrões do código e a coleção de exemplo.
+// sem o Netlify, por exemplo), o site segue com os padrões do código e o catálogo vazio.
 export function SiteDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<SiteData & { loaded: boolean }>({
     settings: emptySettings(),
@@ -81,7 +75,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Conta a visita alguns segundos depois de abrir, para não disputar com a abertura em 3D
+  // Conta a visita alguns segundos depois de abrir, para não disputar com a abertura
   useEffect(() => {
     if (countedToday()) return
     const timer = window.setTimeout(() => {
@@ -102,13 +96,9 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(() => {
-    const sample = data.loaded && data.products.length === 0
     const categories = availableCategories(data.settings)
-    const catalog = data.loaded
-      ? (sample ? sampleProducts : data.products).filter((p) => categoryOn(data.settings, p.category)).sort(productOrder)
-      : []
-    const showcase = data.loaded ? catalog : sampleProducts
-    return { ...data, catalog, showcase, sample, categories, addComment }
+    const catalog = data.products.filter((p) => categoryOn(data.settings, p.category)).sort(productOrder)
+    return { ...data, catalog, categories, addComment }
   }, [data, addComment])
   return <SiteDataContext.Provider value={value}>{children}</SiteDataContext.Provider>
 }

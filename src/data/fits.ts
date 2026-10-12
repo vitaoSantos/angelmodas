@@ -1,6 +1,6 @@
-// Moldes do provador 3D: é o formato com que cada peça aparece vestida no manequim.
-// No painel, cada peça do catálogo escolhe o molde mais parecido (um conjunto escolhe dois: o de cima e o de baixo).
-// O desenho 3D de cada molde fica em src/components/three/garments.ts.
+// Onde cada peça veste no provador ("Monte o seu look"): parte de cima, parte de baixo ou peça inteira.
+// Um conjunto veste as duas partes. O painel grava os três ids genéricos (cima, baixo, inteira);
+// os outros são os moldes do antigo manequim 3D, que continuam valendo para as peças cadastradas antes.
 
 // Onde a peça veste: parte de cima, de baixo ou inteira (vestido, macacão)
 export type Slot = 'top' | 'bottom' | 'full'
@@ -8,6 +8,9 @@ export type Slot = 'top' | 'bottom' | 'full'
 export type Fit = { id: string; label: string; slot: Slot }
 
 export const fits: Fit[] = [
+  { id: 'cima', label: 'Parte de cima', slot: 'top' },
+  { id: 'baixo', label: 'Parte de baixo', slot: 'bottom' },
+  { id: 'inteira', label: 'Peça inteira', slot: 'full' },
   // Parte de cima
   { id: 'regata', label: 'Regata', slot: 'top' },
   { id: 'cropped', label: 'Cropped de alcinha', slot: 'top' },
@@ -44,16 +47,35 @@ export const fitById = (id: string) => fits.find((f) => f.id === id)
 
 export const slotLabels: Record<Slot, string> = { top: 'Parte de cima', bottom: 'Parte de baixo', full: 'Peça inteira' }
 
-// Molde sugerido quando a peça é cadastrada, pela categoria (dá para trocar no painel)
+// Onde veste, sugerido pela categoria quando a peça é cadastrada (dá para trocar no painel)
 export const suggestedFits: Record<string, string[]> = {
-  vestidos: ['vestido-curto'],
-  blusas: ['manga-curta'],
-  tricot: ['manga-longa'],
-  conjuntos: ['camisa', 'short'],
-  calcas: ['calca-reta'],
-  'saias-shorts': ['saia-curta'],
-  fitness: ['top-fitness', 'legging'],
+  vestidos: ['inteira'],
+  blusas: ['cima'],
+  tricot: ['cima'],
+  conjuntos: ['cima', 'baixo'],
+  calcas: ['baixo'],
+  'saias-shorts': ['baixo'],
+  fitness: ['cima', 'baixo'],
   acessorios: [],
+}
+
+// As opções do painel para "onde veste" e os ids que cada uma grava
+export const wearOptions = [
+  { id: 'cima', label: 'Parte de cima (blusa, top, camisa)', fits: ['cima'] },
+  { id: 'baixo', label: 'Parte de baixo (calça, saia, short)', fits: ['baixo'] },
+  { id: 'inteira', label: 'Peça inteira (vestido, macacão)', fits: ['inteira'] },
+  { id: 'conjunto', label: 'Conjunto (parte de cima + de baixo)', fits: ['cima', 'baixo'] },
+  { id: 'nenhum', label: 'Não entra no provador (acessório)', fits: [] },
+] as const
+
+// Qual opção do painel corresponde aos moldes gravados na peça (inclusive os antigos)
+export function wearOptionOf(ids: string[]) {
+  const slots = validFits(ids).map((id) => fitById(id)?.slot)
+  if (slots.includes('full')) return 'inteira'
+  if (slots.includes('top') && slots.includes('bottom')) return 'conjunto'
+  if (slots.includes('top')) return 'cima'
+  if (slots.includes('bottom')) return 'baixo'
+  return 'nenhum'
 }
 
 // Uma peça veste até dois moldes: um de cima e um de baixo, ou uma peça inteira sozinha

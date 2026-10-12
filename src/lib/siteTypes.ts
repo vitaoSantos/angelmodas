@@ -5,15 +5,19 @@ import { categories } from '../data/catalog'
 // Foto de uma peça. A primeira da lista é a capa.
 export type ProductPhoto = { key: string; width: number; height: number }
 
+// Foto da peça sozinha (esticada ou no cabide), uma por cor: é o que aparece no provador.
+// `cutout`: o fundo foi tirado no painel (imagem com transparência)
+export type PiecePhoto = ProductPhoto & { cutout: boolean }
+
 // Cor em que a peça existe. A primeira é a cor das fotos.
-export type ProductColor = { name: string; hex: string }
+export type ProductColor = { name: string; hex: string; piece?: PiecePhoto }
 
 // Peça do catálogo, cadastrada pelo painel (/admin)
 export type Product = {
   id: string
   name: string
   category: string
-  fits: string[] // moldes do provador 3D: nenhum, um, ou um de cima + um de baixo (conjunto)
+  fits: string[] // onde veste no provador (data/fits.ts): nenhum, cima, baixo, inteira, ou cima + baixo (conjunto)
   fabric: string
   colors: ProductColor[]
   sizes: string[]
@@ -23,7 +27,7 @@ export type Product = {
   soldOut: boolean
   hidden: boolean // escondida do site (continua no painel)
   photos: ProductPhoto[]
-  swatch: string // recorte do tecido tirado da foto ('' = sem recorte), usado no manequim 3D
+  swatch: string // recorte do tecido tirado da foto ('' = sem recorte): o "tecido de perto" da ficha
   createdAt: string
 }
 

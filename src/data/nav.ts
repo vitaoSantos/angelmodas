@@ -2,7 +2,7 @@
 export const navLinks = [
   { id: 'inicio', label: 'Início' },
   { id: 'catalogo', label: 'Catálogo' },
-  { id: 'provador', label: 'Provador 3D' },
+  { id: 'provador', label: 'Provador' },
   { id: 'clientes', label: 'Clientes' },
   { id: 'comunidade', label: 'Comunidade' },
   { id: 'contato', label: 'Contato' },

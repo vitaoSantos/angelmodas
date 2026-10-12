@@ -1,12 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { categories, fabrics, palette } from '../../src/data/catalog'
-import { fits, slotLabels, validFits } from '../../src/data/fits'
+import { validFits } from '../../src/data/fits'
 import type { ProductColor } from '../../src/lib/siteTypes'
 import { PRODUCT_LIMITS } from './products'
 import { env } from './store'
 import { clean, cleanMultiline } from './text'
 
-// Análise da foto da peça com o Claude (visão): sugere nome, categoria, molde do manequim 3D, tecido,
+// Análise da foto da peça com o Claude (visão): sugere nome, categoria, onde veste no provador, tecido,
 // cores e o ponto da foto onde o tecido aparece bem (o painel tira dali a cor exata e o recorte do tecido).
 // Precisa da variável ANTHROPIC_API_KEY no Netlify. Nada é salvo: o painel só preenche o formulário.
 
@@ -30,8 +30,8 @@ const SCHEMA = {
     category: { type: 'string', enum: categories.map((c) => c.id) },
     fits: {
       type: 'array',
-      items: { type: 'string', enum: fits.map((f) => f.id) },
-      description: 'Um molde; para conjunto, dois (um de cima e um de baixo)',
+      items: { type: 'string', enum: ['cima', 'baixo', 'inteira'] },
+      description: 'Onde a peça veste: ["cima"], ["baixo"], ["inteira"], ["cima", "baixo"] para conjunto, ou [] para acessório',
     },
     fabric: { type: 'string', enum: fabrics.map((f) => f.id) },
     colors: {
@@ -62,18 +62,15 @@ const SCHEMA = {
 
 const SYSTEM = [
   'Você ajuda a Anghel Modas, uma loja de moda feminina, a cadastrar peças no catálogo do site a partir da foto.',
-  'O site veste cada peça num manequim 3D usando um "molde" (o formato da roupa) e um tecido (que muda brilho, textura e caimento).',
-  'Escolha o molde e o tecido mais parecidos com a peça da foto. Se a foto mostra um look com várias peças, cadastre a peça em destaque;',
-  'se for um conjunto (duas peças do mesmo tecido), use a categoria "conjuntos" com um molde de cima e um de baixo.',
+  'No provador do site a cliente monta o look combinando parte de cima, parte de baixo ou uma peça inteira (vestido, macacão).',
+  'Se a foto mostra um look com várias peças, cadastre a peça em destaque;',
+  'se for um conjunto (duas peças do mesmo tecido), use a categoria "conjuntos" e onde veste ["cima", "baixo"].',
   'Escreva em português do Brasil, num tom simpático e direto, sem inventar detalhes que não aparecem na foto (nada de composição, preço ou tamanho).',
   '',
   'Categorias: ' + categories.map((c) => `${c.id} (${c.label})`).join(', ') + '.',
   '',
-  'Moldes:',
-  ...fits.map((f) => `- ${f.id}: ${f.label} (${slotLabels[f.slot].toLowerCase()})`),
-  '',
   'Tecidos: ' + fabrics.map((f) => `${f.id} (${f.label}, ${f.hint})`).join(', ') + '.',
-  'Use "estampado" só quando a peça tem estampa (floral, animal print, listras): o manequim usa o recorte da foto como tecido.',
+  'Use "estampado" só quando a peça tem estampa (floral, animal print, listras).',
   '',
   'Nomes de cor preferidos: ' + palette.map((p) => `${p.label} ${p.color}`).join(', ') + '.',
 ].join('\n')

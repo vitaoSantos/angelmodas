@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useInView } from 'motion/react'
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TbArrowLeft, TbArrowRight, TbHandFinger, TbLayoutGrid, TbHanger } from 'react-icons/tb'
-import { useLook } from '../../context/LookContext'
+import { useSheet } from '../../context/SheetContext'
 import { useSiteData } from '../../context/SiteDataContext'
 import { useIsDesktop, useReducedMotion } from '../../hooks/useMediaQuery'
 import { priceLabel } from '../../lib/products'
@@ -11,7 +11,6 @@ import { easeOut } from '../ui/motion'
 import { PieceThumb } from '../ui/PieceThumb'
 import { Reveal } from '../ui/Reveal'
 import { SectionLabel } from '../ui/SectionLabel'
-import { ProductSheet } from './ProductSheet'
 
 const RackStage = lazy(() => import('../three/RackStage'))
 
@@ -32,7 +31,7 @@ export function Catalog() {
   const { catalog, categories, settings, loaded } = useSiteData()
   const [filter, setFilter] = useState(ALL)
   const [view, setView] = useState<'arara' | 'lista'>('arara')
-  const [open, setOpen] = useState<Product | null>(null)
+  const { openProduct } = useSheet()
   const [webgl] = useState(() => {
     try {
       return Boolean(document.createElement('canvas').getContext('webgl2'))
@@ -56,7 +55,6 @@ export function Catalog() {
     () => (filter === ALL ? catalog : filter === NEW ? catalog.filter((p) => p.isNew) : catalog.filter((p) => p.category === filter)),
     [catalog, filter],
   )
-  const close = useCallback(() => setOpen(null), [])
   const showRack = view === 'arara' && webgl
 
   return (
@@ -69,7 +67,7 @@ export function Catalog() {
               A arara está cheia de <span className="text-gradient font-script text-[1.1em]">novidades.</span>
             </h2>
             <p className="max-w-sm text-muted">
-              Arraste para passar as peças e toque num cabide para ver de perto, escolher a cor e provar no manequim.
+              Arraste para passar as peças e toque num cabide para ver de perto, escolher a cor e montar um look.
             </p>
           </div>
         </Reveal>
@@ -120,23 +118,24 @@ export function Catalog() {
       ) : products.length === 0 ? (
         <p className="container-x mt-10 text-muted">Nenhuma peça nesta categoria por enquanto.</p>
       ) : showRack ? (
-        <RackView key={filter} products={products} onSelect={setOpen} showPrices={settings.showPrices} />
+        <RackView key={filter} products={products} onSelect={openProduct} showPrices={settings.showPrices} />
       ) : (
-        <GridView products={products} onSelect={setOpen} />
+        <GridView products={products} onSelect={openProduct} />
       )}
 
-      <AnimatePresence>{open && <ProductSheet key={open.id} product={open} onClose={close} />}</AnimatePresence>
     </section>
   )
 }
 
 function RackView({ products, onSelect, showPrices }: { products: Product[]; onSelect: (p: Product) => void; showPrices: boolean }) {
-  const { skin } = useLook()
   const wrap = useRef<HTMLDivElement>(null)
   const motionRef = useRef<RackMotion>(newRackMotion())
   const desktop = useIsDesktop()
   const reduced = useReducedMotion()
-  const near = useInView(wrap, { margin: '500px 0px', once: true })
+  // no computador a arara fica montada; no celular ela é desmontada quando fica longe (libera a memória de vídeo)
+  const nearOnce = useInView(wrap, { margin: '500px 0px', once: true })
+  const nearNow = useInView(wrap, { margin: '700px 0px' })
+  const near = desktop ? nearOnce : nearNow
   const visible = useInView(wrap)
   const [index, setIndex] = useState(0)
 
@@ -244,7 +243,6 @@ function RackView({ products, onSelect, showPrices }: { products: Product[]; onS
                 mobile={!desktop}
                 reduced={reduced}
                 showPrices={showPrices}
-                skin={skin}
               />
             </Suspense>
           </RackBoundary>
@@ -275,7 +273,7 @@ function RackView({ products, onSelect, showPrices }: { products: Product[]; onS
               <span className="block truncate font-display text-2xl text-cream sm:text-3xl">{current.name}</span>
               <span className="mt-1 flex items-baseline justify-center gap-3 text-sm text-muted">
                 {showPrices && priceLabel(current) && <span className="text-xl font-semibold text-gold-soft sm:text-2xl">{priceLabel(current)}</span>}
-                <span className="text-gold underline-offset-4 hover:underline">ver detalhes</span>
+                <span className="whitespace-nowrap text-gold underline-offset-4 hover:underline">ver detalhes</span>
                 <span className="tabular-nums text-faint">
                   {index + 1}/{products.length}
                 </span>

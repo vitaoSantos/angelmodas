@@ -15,8 +15,9 @@ Itens marcados com **[?]** precisam de resposta. Depois é só preencher nos arq
 
 - ✅ Variável `ADMIN_PASSWORD` criada no Netlify.
 - Análise da foto com IA no cadastro (opcional): criar a variável `ANTHROPIC_API_KEY` no Netlify com uma chave da API do Claude (ver README). [?]
-- Tom de pele padrão do manequim: usei **média**; a cliente pode trocar no provador (clara, média, morena, negra ou porcelana). Querem outro padrão? [?]
-- Enquanto não houver peças cadastradas, o site mostra uma coleção de exemplo inspirada nos posts do Instagram (sem preço). Ela some quando a primeira peça for cadastrada.
+- Provador: para cada cor, cadastrar a **foto da peça sozinha** (esticada ou no cabide, fundo liso). Sem ela, o provador usa a foto com modelo. [?]
+- Giro 360° das peças principais: depende de ter um manequim na loja. [?]
+- A capa do site usa as fotos de capa das peças cadastradas (as novidades primeiro). Querem escolher fotos específicas para a capa? [?]
 - Preços: mostrar no site ou só no WhatsApp? Dá para ligar/desligar no painel (Opções do site). [?]
 - Categorias usadas: vestidos, blusas, tricô, conjuntos, calças, saias e shorts, fitness, acessórios. Faltou alguma? [?]
 - Tamanhos oferecidos no cadastro: PP a XG, U (único) e 34 a 46. [?]

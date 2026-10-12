@@ -9,7 +9,7 @@ const steps = [
   {
     icon: TbHanger,
     title: 'Escolha as peças',
-    text: 'Passe pela arara do catálogo ou monte o look inteiro no provador 3D, trocando as cores até achar a combinação perfeita.',
+    text: 'Passe pela arara do catálogo ou monte o look inteiro no provador, trocando as peças e as cores até achar a combinação perfeita.',
     note: 'pode provar quantas vezes quiser',
   },
   {

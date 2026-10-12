@@ -1,35 +1,32 @@
 # Anghel Modas
 
-Site-vitrine da Anghel Modas (moda feminina): uma página única com uma abertura em 3D onde um **manequim de vitrine se veste sozinho** conforme a pessoa rola a página, um **catálogo em arara 3D**, um **provador 3D** onde a cliente monta o look no manequim com as peças da loja, mural de clientes, comunidade (recados e contador de visitas) e contato. Tem também um **painel** (`/admin`) para cadastrar as peças com foto, publicar fotos de clientes, ligar/desligar opções do site e cuidar dos recados, sem mexer no código.
+Site-vitrine da Anghel Modas (moda feminina): uma página única com uma **capa com as fotos reais das peças**, um **catálogo em arara 3D**, um **provador** onde a cliente monta o look com as fotos das peças, mural de clientes, comunidade (recados e contador de visitas) e contato. Tem também um **painel** (`/admin`) para cadastrar as peças com foto, publicar fotos de clientes, ligar/desligar opções do site e cuidar dos recados, sem mexer no código.
 
-Mesma base do ChocoFeliz: **Vite + React + TypeScript + Tailwind v4 + Three.js (React Three Fiber) + Motion + Lenis**, publicado no **Netlify** com **Netlify Forms**, **Functions** e **Blobs** (sem banco de dados para manter).
+Mesma base do ChocoFeliz: **Vite + React + TypeScript + Tailwind v4 + Three.js (React Three Fiber, só na arara) + Motion + Lenis**, publicado no **Netlify** com **Netlify Forms**, **Functions** e **Blobs** (sem banco de dados para manter).
 
-## O que tem de diferente: o 3D
+## A vitrine
 
-Tudo é feito em código (sem modelos 3D prontos): o manequim, as roupas e os tecidos.
+Tudo o que a cliente vê é foto de verdade das peças. O 3D fica só na arara, e o celular recebe uma versão mais leve dela.
 
-### Abertura (rolando a página)
+### Capa
 
-| Momento | O que acontece |
-| --- | --- |
-| **Tela de carregamento** | A cortina de veludo do provador; um fio dourado desenha o manequim do logo e o contador vai a 100%. Quando o 3D está pronto, a cortina abre para os lados. |
-| **Construção** (automática) | O manequim nasce do chão em curvas de nível douradas (como um croqui), ganha a pele e o cabelo e a roupa é "costurada" de cima para baixo com um brilho dourado. |
-| **01 · A peça** | As peças se afastam do corpo (vista explodida) com anotações escritas à mão. |
-| **02 · O tecido** | A câmera chega perto e o tecido troca: linho, tricô, canelado, cetim, renda. |
-| **03 · A cor** | A cor nova escorre pela roupa de cima para baixo: chocolate, manteiga, rosé, terracota… |
-| **04 · O look** | O manequim gira e, a cada volta, veste um look diferente montado com as peças do catálogo. |
+As novidades passam como uma revista: uma cortina revela a próxima foto a cada 5,6 s, com barrinhas de progresso como nos stories e a etiqueta da peça (nome, preço, "Novidade") que abre a ficha. No computador a foto fica ao lado do título, com a próxima peça encostada atrás; no celular ela ocupa a tela inteira (toque na direita avança, na esquerda volta). A capa usa as fotos de capa das peças cadastradas, das novidades para as mais antigas.
 
 ### Catálogo em arara 3D
 
-As peças cadastradas no painel ficam penduradas em cabides dourados num varão. Arrastar (mouse, dedo, trackpad lateral ou setas) passa as peças, e os cabides **balançam com o movimento**. Cada cabide tem uma etiqueta de papel com nome, cores e o preço em destaque. Tocar numa peça abre a ficha: fotos, cores, tamanhos, "Quero esta peça" (WhatsApp) e **"No manequim 3D"**, que mostra a peça vestida no manequim, na cor escolhida. Peça sem foto aparece no cabide como uma foto do próprio manequim vestido com ela. Também dá para ver o catálogo em lista.
+As peças ficam penduradas em cabides dourados num varão. Arrastar (mouse, dedo, trackpad lateral ou setas) passa as peças, e os cabides **balançam com o movimento**. Cada cabide tem uma etiqueta de papel com nome, cores e o preço em destaque. Tocar numa peça abre a ficha. Peça sem foto com modelo aparece no cabide com a foto da peça sozinha num papel cor de linho. Também dá para ver o catálogo em lista.
 
-### Provador 3D ("Monte o seu look")
+### Provador ("Monte o seu look")
 
-A cliente escolhe a parte de cima, a de baixo, um vestido ou um conjunto, e o manequim veste na hora (com a costura dourada). O manequim tem rosto esculpido de leve e cabelo preso num coque, e a cliente escolhe o **tom de pele** (clara, média, morena, negra ou o manequim de porcelana clássico) nas bolinhas ao lado do manequim; o site lembra a escolha e usa o mesmo tom na abertura e na arara. Troca as cores de cada peça, escolhe o tamanho e pede pelo WhatsApp com o look já escrito na mensagem. Dá para **tirar uma foto** (formato do feed) e **gravar um vídeo de 360°** (formato dos stories, com o nome da loja e das peças) e compartilhar direto pelo celular.
+Um quadro cor de linho com duas faixas, **parte de cima** e **parte de baixo**, ou uma faixa só para a **peça inteira** (vestido, macacão, conjunto). Arrastar a faixa para o lado (ou as setas) troca a peça; as cores trocam na lista "Vestindo agora". A cliente escolhe o tamanho, pede pelo WhatsApp com o look já escrito na mensagem e pode **salvar a foto do look** (formato do feed, com as peças, os nomes e o @ da loja) para compartilhar.
 
-**Como a peça vira 3D:** no cadastro, cada peça escolhe um **molde** (regata, ombro só, frente única, camisa, pantalona, saia midi, vestido longo com fenda… são 27) e um **tecido** (malha, canelado, tricô, linho, jeans, cetim, crepe, suplex, renda, estampado). O molde dá o formato; o tecido muda o brilho e a textura (nervuras do canelado, pontos do tricô, trama do linho, sarja do jeans, furinhos da renda). No painel, tocando no tecido da foto, o conta-gotas tira **a cor certinha** e um **recorte do tecido**, que vira a textura da peça no manequim. Ou, com um toque em **Analisar a foto**, a IA (Claude) olha a foto e preenche sozinha nome, categoria, molde, tecido, cores, descrição e o recorte do tecido; é só conferir na prévia 3D e salvar.
+**De onde vem a imagem de cada peça:** no cadastro, cada cor pode ter uma **foto da peça sozinha** (esticada na cama ou no cabide). O painel **tira o fundo na hora**, no próprio navegador e sem custo, e a peça aparece recortada no papel do provador, com a sombra do próprio contorno. Se o fundo não sair bem, dá para usar a foto com fundo, que aparece como uma foto pousada no papel. Sem a foto da peça sozinha, o provador usa a foto com modelo, mostrando a parte do corpo onde a peça veste.
 
-Enquanto o catálogo do painel estiver vazio, o site mostra uma **coleção de exemplo** (inspirada nos posts do Instagram, sem preço) para a vitrine não ficar vazia. Ela some sozinha quando a primeira peça for cadastrada.
+Dicas para a foto da peça sozinha: peça inteira na foto, esticada sem dobras, sobre um fundo liso de cor diferente da peça (lençol, parede, papel), com luz do dia e sem sombras fortes. Peça branca num fundo claro não separa: use um fundo escuro.
+
+### Ficha da peça
+
+Fotos com modelo e as fotos da peça sozinha de cada cor (tocar numa cor mostra a foto dela), o "tecido de perto" (o recorte que o conta-gotas tira da foto), tamanhos, "Quero esta peça" (WhatsApp) e "Montar um look com esta peça", que leva a peça para o provador.
 
 ## Rodando
 
@@ -41,8 +38,6 @@ npm run typecheck
 ```
 
 No `npm run dev` as Netlify Functions e o Netlify Blobs são simulados pelo `@netlify/vite-plugin` (os dados de teste ficam na pasta `.netlify/`, fora do git). Para entrar no painel localmente, crie um arquivo `.env` com `ADMIN_PASSWORD=uma-senha-de-teste`.
-
-Só no `npm run dev` existe também o **laboratório dos moldes**, em `/moldes`: todos os moldes vestidos lado a lado, para ajustar o desenho deles (`?fit=regata,camisa` mostra só alguns; `?view=back` mostra as costas; `?skin=todos` alterna os tons de pele).
 
 ## Publicando no Netlify
 
@@ -58,7 +53,7 @@ As mensagens do formulário aparecem em **Netlify → Forms → pedido** (com o 
 
 Endereço: `seusite.netlify.app/admin` (não aparece no menu e não é indexado pelo Google). Entra com a senha do `ADMIN_PASSWORD`.
 
-- **Catálogo**: cadastre a peça com até 6 fotos (dá para fotografar direto do celular; o painel reduz a foto, corrige a rotação e remove localização e outros dados da câmera). Nome, categoria, tecido, **molde no provador 3D** (conjunto escolhe o de cima e o de baixo), cores (atalhos com nomes ou qualquer cor; **toque no tecido da foto** para tirar a cor e o recorte do tecido), tamanhos, preço (opcional), descrição e as chaves **Novidade**, **Esgotada** e **Esconder do site**. Uma **prévia 3D** mostra na hora como a peça fica no manequim. Com a variável `ANTHROPIC_API_KEY`, o botão **Analisar a foto** preenche o cadastro a partir da foto. Depois dá para editar, trocar a capa, incluir ou apagar fotos e apagar a peça. Cabem até 300 peças.
+- **Catálogo**: cadastre a peça com até 6 fotos (dá para fotografar direto do celular; o painel reduz a foto, corrige a rotação e remove localização e outros dados da câmera). Nome, categoria, tecido, **onde veste no provador** (parte de cima, de baixo, peça inteira, conjunto ou fora do provador), cores (atalhos com nomes ou qualquer cor; **toque no tecido da foto** para tirar a cor e o recorte do tecido) com a **foto da peça sozinha** de cada cor (o fundo sai sozinho; dá para escolher com ou sem fundo), tamanhos, preço (opcional), descrição e as chaves **Novidade**, **Esgotada** e **Esconder do site**. A **prévia no provador** mostra na hora como a peça aparece para a cliente. Com a variável `ANTHROPIC_API_KEY`, o botão **Analisar a foto** preenche o cadastro a partir da foto. Depois dá para editar, trocar a capa, incluir ou apagar fotos e apagar a peça. Cabem até 300 peças.
 - **Mural de clientes**: fotos de clientes usando as peças (com a autorização delas), com título, look e data opcionais. Cabem até 400 fotos.
 - **Opções do site**: esconde uma categoria inteira (fora de estação, por exemplo) e liga/desliga os preços no site. Pelo menos uma categoria fica sempre ligada.
 - **Comunidade**: visitas (total, hoje, 7 e 30 dias, e um gráfico dos últimos 14 dias) e os recados: aprovar, tirar do site ou apagar. Uma chave escolhe se os recados novos entram direto ou esperam aprovação (o padrão é esperar). A aba mostra quantos estão esperando.
@@ -81,25 +76,21 @@ Segurança: a senha é conferida na função `netlify/functions/admin.mts`; depo
 | Aprovar ou apagar recados | **Painel** (`/admin` → Comunidade) |
 | WhatsApp (35 98874-7707), Instagram (@aanghelmodas), e-mail, cidade | `src/data/brand.ts` |
 | Categorias, tamanhos, tecidos e cores com nome | `src/data/catalog.ts` |
-| Nome e lista dos moldes do provador | `src/data/fits.ts` (o desenho 3D de cada molde fica em `src/components/three/garments.ts`) |
-| Coleção de exemplo (catálogo vazio) | `src/data/sample.ts` |
-| Brilho e textura de cada tecido | `src/components/three/fabric.ts` |
-| Medidas e pose do manequim | `src/components/three/body.ts` |
-| Textos da abertura | `src/components/sections/Hero.tsx` |
+| Opções de "onde veste" no provador | `src/data/fits.ts` |
+| Textos da capa | `src/components/sections/Hero.tsx` |
+| Como o fundo da foto da peça é tirado | `src/lib/cutout.ts` |
 | Menu | `src/data/nav.ts` |
 
 ## Desempenho
 
-O 3D foi ajustado para pesar menos em notebook e celular. Se for mexer nele, vale manter:
+O site foi ajustado para não travar no celular. Se for mexer, vale manter:
 
-- **Um shader só para todas as roupas**: recortes (decote, cavas, costas, fenda), texturas dos tecidos e efeitos da abertura são todos parâmetros (uniforms). Trocar peça, cor ou tecido não recompila nada.
-- **Cada molde é gerado uma vez** e guardado; trocar de cor não gera malha nova.
-- **Tudo é preparado atrás da tela de carregamento** (`Warmup.tsx`): a abertura e o provador compilam os shaders e sobem tudo para a GPU antes da cortina abrir.
-- **As cenas 3D só desenham quando estão na tela**, e o three.js fica num arquivo à parte (quem abre o site baixa a página primeiro).
+- **Uma cena 3D só (a arara)**, carregada à parte: quem abre o site baixa a página primeiro, e o three.js só vem quando a arara está chegando na tela.
+- **No celular a arara é mais leve**: resolução 1×, sem antisserrilhado, menos cabides montados de uma vez e sem as partículas douradas. Ela é desmontada quando fica longe da tela (libera a memória de vídeo) e só desenha quando está visível.
 - **A arara monta só os cabides perto do centro**, então um catálogo grande continua leve. As fotos dos cartões são as miniaturas (720 px).
-- **Resolução no máximo 1,5×**, caindo para 1× sozinha na abertura se o aparelho não segurar 60 fps.
-- **Sem pós-processamento e sem sombras de verdade**: o brilho vem dos materiais e a sombra no chão é um degradê.
-- **Nada de `backdrop-filter` em cima do canvas**, e animações de scroll só com `transform`/`opacity`.
+- **Capa e provador são só imagens**: a capa baixa a primeira foto com prioridade e a próxima antes da hora; as fotos do provador e das listas carregam conforme aparecem.
+- **Nada fica grudado na tela no celular** (o quadro do provador rola junto com a página), e o granulado e o cursor personalizado só existem no computador.
+- **Nada de `backdrop-filter` em cima do canvas**, e animações só com `transform`/`opacity`/`clip-path`.
 
 ## Estrutura
 
@@ -107,17 +98,17 @@ O 3D foi ajustado para pesar menos em notebook e celular. Se for mexer nele, val
 src/
   admin/        painel (/admin): catálogo, mural de clientes, opções e comunidade; carregado à parte
   components/
-    three/      3D: manequim (body), moldes das roupas (garments), tecidos (fabric), abertura,
-                arara do catálogo e provador
-    sections/   seções da página (abertura, catálogo, provador, clientes, como comprar, comunidade, contato)
+    three/      arara 3D do catálogo (cabides, varão, etiquetas, luz)
+    sections/   seções da página (capa, catálogo, provador, ficha da peça, clientes, como comprar, comunidade, contato)
     layout/     cortina de abertura, menu, rodapé, cursor, scroll suave
-    ui/         peças reutilizáveis (logo, miniatura da peça…)
-  context/      estado da abertura, dados do painel e look montado no provador
-  data/         conteúdo editável (marca, catálogo, moldes, coleção de exemplo)
-  dev/          laboratório dos moldes (só no npm run dev)
-  lib/          chamadas às funções, imagens (redução, conta-gotas, recorte do tecido), etiquetas
+    ui/         peças reutilizáveis (logo, miniatura, foto da peça, quadro do provador…)
+  context/      estado da abertura, dados do painel, look montado no provador e ficha da peça
+  data/         conteúdo editável (marca, catálogo, onde veste)
+  lib/          chamadas às funções, imagens (redução, conta-gotas, recorte do tecido, tirar o fundo),
+                etiquetas da arara, foto do look
 netlify/
   functions/    site (dados públicos), image (entrega as fotos), visit (conta visitas),
                 comment (recebe recados), admin (painel, com senha)
-  lib/          acesso ao Netlify Blobs, validação das peças e das opções, limpeza de textos
+  lib/          acesso ao Netlify Blobs, validação das peças e das opções, limpeza de textos,
+                análise da foto com IA
 ```

@@ -24,7 +24,7 @@ export function Footer() {
             <Logo />
           </a>
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted">
-            {brand.tagline}: peças escolhidas a dedo para você se sentir linda todo dia. Veja no provador 3D e peça pelo WhatsApp.
+            {brand.tagline}: peças escolhidas a dedo para você se sentir linda todo dia. Monte o seu look no provador e peça pelo WhatsApp.
           </p>
         </div>
 

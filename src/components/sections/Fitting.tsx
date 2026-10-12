@@ -1,82 +1,39 @@
-import { AnimatePresence, motion, useInView } from 'motion/react'
-import { Component, lazy, Suspense, useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
-import { TbArrowsShuffle, TbBrandWhatsapp, TbCamera, TbCheck, TbHandFinger, TbLoader2, TbVideo, TbX } from 'react-icons/tb'
-import { useIntro } from '../../context/IntroContext'
-import { useLook } from '../../context/LookContext'
+import { AnimatePresence, motion } from 'motion/react'
+import { useMemo, useState } from 'react'
+import { TbArrowsShuffle, TbBrandWhatsapp, TbCamera, TbCheck, TbLoader2, TbX } from 'react-icons/tb'
+import { useLook, type Row } from '../../context/LookContext'
 import { brand, whatsappUrl } from '../../data/brand'
 import { sizes as allSizes, sortSizes } from '../../data/catalog'
-import { skinTones } from '../../data/skin'
-import { useIsDesktop, useReducedMotion } from '../../hooks/useMediaQuery'
-import { useSpinDrag } from '../../hooks/useSpinDrag'
-import { priceLabel, productSlots } from '../../lib/products'
-import { canRecordVideo, shareOrDownload } from '../../lib/share'
-import type { Product } from '../../lib/siteTypes'
-import type { Capture } from '../three/FittingStage'
-import { newSpin, type Spin } from '../three/shared'
+import { lookPhoto } from '../../lib/lookPhoto'
+import { pieceSource, priceLabel } from '../../lib/products'
+import { shareOrDownload } from '../../lib/share'
 import { useScrollTo } from '../layout/Navbar'
-import { LogoMark } from '../ui/Logo'
+import { LookBoard, rowSlot } from '../ui/LookBoard'
 import { Magnetic } from '../ui/Magnetic'
+import { FOCUS } from '../ui/PieceImage'
 import { PieceThumb } from '../ui/PieceThumb'
 import { Reveal } from '../ui/Reveal'
 import { SectionLabel } from '../ui/SectionLabel'
 
-const FittingStage = lazy(() => import('../three/FittingStage'))
-
-class StageBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children
-  }
-}
-
-type Tab = 'top' | 'bottom' | 'full'
-
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: Row; label: string }[] = [
   { id: 'top', label: 'Parte de cima' },
   { id: 'bottom', label: 'Parte de baixo' },
-  { id: 'full', label: 'Vestidos e conjuntos' },
+  { id: 'whole', label: 'Vestidos e conjuntos' },
 ]
 
-// Em qual aba a peça aparece (conjuntos ficam junto com os vestidos)
-const tabOf = (p: Product): Tab => {
-  const slots = productSlots(p)
-  return slots.length === 2 || slots[0] === 'full' ? 'full' : (slots[0] as Tab)
-}
-
+// Provador ("Monte o seu look"): as fotos das peças de verdade, combinadas no papel.
+// No celular nada fica grudado na tela: o quadro rola junto com a página.
 export function Fitting() {
   const look = useLook()
-  const { items, pieces, wearable, wear, isWorn, size, setSize, skin, setSkin, surprise, lines } = look
-  const desktop = useIsDesktop()
-  const reduced = useReducedMotion()
+  const { items, options, board, wear, isWorn, size, setSize, surprise, lines } = look
   const scrollTo = useScrollTo()
-  const stage = useRef<HTMLDivElement>(null)
-  const spin = useRef<Spin>(newSpin())
-  const capture = useRef<Capture | null>(null)
-  const onDrag = useSpinDrag(spin)
-  const { heroReady, markReady } = useIntro()
-  // O 3D daqui é preparado ainda durante a tela de abertura, e não no meio do scroll
-  const near = useInView(stage, { margin: '600px 0px', once: true })
-  const visible = useInView(stage)
-  const [stageReady, setStageReady] = useState(false)
-  const onStageReady = useCallback(() => {
-    setStageReady(true)
-    markReady('fitting')
-  }, [markReady])
-  const [tab, setTab] = useState<Tab>('top')
-  const [busy, setBusy] = useState<'photo' | 'video' | null>(null)
-  const [progress, setProgress] = useState(0)
+  const [tab, setTab] = useState<Row>('top')
+  const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
 
-  const byTab = useMemo(() => {
-    const out: Record<Tab, Product[]> = { top: [], bottom: [], full: [] }
-    for (const p of wearable) out[tabOf(p)].push(p)
-    return out
-  }, [wearable])
-  const tabs = TABS.filter((t) => byTab[t.id].length)
-  const currentTab = byTab[tab].length ? tab : (tabs[0]?.id ?? 'top')
+  const tabs = TABS.filter((t) => options[t.id].length)
+  const currentTab = options[tab].length ? tab : (tabs[0]?.id ?? 'top')
+  const both = options.whole.length > 0 && options.top.length + options.bottom.length > 0
 
   // tamanhos das peças vestidas (ou os mais comuns)
   const sizeOptions = useMemo(() => {
@@ -86,148 +43,89 @@ export function Fitting() {
   }, [items])
 
   const message = [`Olá, ${brand.name}! Montei este look no provador do site:`, ...lines.map((l) => `• ${l}`), 'Vocês têm disponível?'].join('\n')
-  const overlay = { title: brand.name, lines: items.map((i) => i.product.name), footer: brand.instagram ? `@${brand.instagram}` : brand.name }
 
   async function takePhoto() {
-    if (!capture.current || busy) return
-    setBusy('photo')
+    if (busy) return
+    setBusy(true)
     setNotice('')
     try {
-      const blob = await capture.current.photo(overlay)
+      const rows: Row[] = board.whole ? ['whole'] : ['top', 'bottom']
+      const cells = rows.flatMap((row) => {
+        const worn = board[row]
+        if (!worn) return []
+        return [{ source: pieceSource(worn.product, worn.color), focus: FOCUS[rowSlot[row]], hex: worn.product.colors[worn.color]?.hex }]
+      })
+      const blob = await lookPhoto(cells, lines.slice(0, -1), brand.name, brand.instagram ? `@${brand.instagram}` : brand.name)
       const result = await shareOrDownload(blob, 'meu-look-anghel.jpg', `Olha o look que eu montei na ${brand.name}!`)
       if (result === 'downloaded') setNotice('Foto salva! Ela está nos seus downloads.')
     } catch {
-      setNotice('Não foi possível tirar a foto agora.')
+      setNotice('Não foi possível montar a foto agora.')
     } finally {
-      setBusy(null)
-    }
-  }
-
-  async function recordVideo() {
-    if (!capture.current || busy) return
-    setBusy('video')
-    setProgress(0)
-    setNotice('')
-    try {
-      const { blob, ext } = await capture.current.video(overlay, 6, setProgress)
-      const result = await shareOrDownload(blob, `meu-look-anghel.${ext}`, `Olha o look que eu montei na ${brand.name}!`)
-      if (result === 'downloaded') setNotice('Vídeo salvo! Ele está nos seus downloads.')
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Não foi possível gravar o vídeo agora.')
-    } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
 
   const btn =
-    'pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-line bg-ink/70 px-3.5 py-2 text-xs font-medium text-cream transition-colors hover:border-gold/60 disabled:opacity-50 sm:text-sm'
+    'inline-flex items-center gap-1.5 rounded-full border border-line bg-ink-2 px-4 py-2.5 text-sm font-medium text-cream transition-colors hover:border-gold/60 disabled:opacity-50'
 
   return (
     <section id="provador" className="relative py-24 sm:py-32">
       <div className="container-x">
         <Reveal>
-          <SectionLabel>Provador 3D</SectionLabel>
+          <SectionLabel>Provador</SectionLabel>
           <div className="mt-6 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <h2 className="max-w-3xl font-display text-[clamp(2.6rem,6vw,5.2rem)] leading-[0.95] tracking-tight">
               Monte o seu <span className="text-gradient font-script text-[1.1em]">look.</span>
             </h2>
             <p className="max-w-sm text-muted">
-              Escolha a parte de cima, a de baixo ou um vestido: o manequim veste na hora. Gire, troque as cores, grave um vídeo e peça pelo
-              WhatsApp.
+              Combine a parte de cima com a de baixo, ou escolha um vestido. Arraste cada peça para o lado para trocar, salve a foto do look e
+              peça pelo WhatsApp.
             </p>
           </div>
         </Reveal>
 
         <div className="mt-14 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.05fr] lg:gap-14">
-          {/* Palco 3D: no celular fica grudado no topo enquanto a pessoa escolhe as peças */}
-          <div className="sticky top-0 z-20 -mx-5 min-w-0 bg-ink px-5 pb-3 pt-2 shadow-[0_18px_24px_-12px_rgb(14_12_11)] sm:-mx-8 sm:px-8 lg:top-24 lg:z-auto lg:mx-0 lg:self-start lg:bg-transparent lg:p-0 lg:shadow-none">
-            <div
-              ref={stage}
-              data-cursor="drag"
-              onPointerDown={onDrag}
-              className="border-gradient relative h-[46svh] touch-pan-y overflow-hidden rounded-[2rem] bg-ink-2 select-none lg:h-auto lg:aspect-[4/5]"
-            >
-              {(heroReady || near) && (
-                <StageBoundary fallback={<StageFallback />}>
-                  <Suspense fallback={null}>
-                    <FittingStage
-                      pieces={pieces}
-                      spin={spin}
-                      capture={capture}
-                      active={visible || busy === 'video'}
-                      mobile={!desktop}
-                      reduced={reduced}
-                      skin={skin}
-                      onReady={onStageReady}
-                    />
-                  </Suspense>
-                </StageBoundary>
-              )}
-              {!stageReady && (
-                <div className="absolute inset-0 bg-ink-2">
-                  <StageFallback />
-                </div>
-              )}
-              <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-4 sm:p-5">
-                <button type="button" onClick={surprise} onPointerDown={(e) => e.stopPropagation()} className={btn}>
-                  <TbArrowsShuffle aria-hidden /> Surpreenda-me
-                </button>
-                <span className="hidden items-center gap-1.5 rounded-full border border-line bg-ink/60 px-3 py-1.5 text-xs text-muted sm:flex">
-                  <TbHandFinger aria-hidden /> arraste para girar
-                </span>
-              </div>
-              {/* Tom de pele do manequim */}
-              <div
-                role="radiogroup"
-                aria-label="Tom de pele do manequim"
-                onPointerDown={(e) => e.stopPropagation()}
-                className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 rounded-full border border-line bg-ink/60 p-1.5 sm:right-5"
-              >
-                {skinTones.map((t) => (
+          {/* Quadro do look */}
+          <div className="grid min-w-0 content-start gap-4 lg:sticky lg:top-24 lg:self-start">
+            <LookBoard className="aspect-[4/5] w-full" />
+            <div className="flex flex-wrap items-center gap-2">
+              {both && (
+                <div className="mr-auto flex rounded-full border border-line p-1 text-sm">
                   <button
-                    key={t.id}
                     type="button"
-                    role="radio"
-                    aria-checked={skin === t.id}
-                    aria-label={`Pele ${t.label.toLowerCase()}`}
-                    title={t.label}
-                    onClick={() => setSkin(t.id)}
-                    className={`size-6 rounded-full border-2 transition-transform sm:size-7 ${skin === t.id ? 'scale-110 border-cream' : 'border-transparent hover:scale-105'}`}
-                    style={{ background: t.hair ? `linear-gradient(160deg, ${t.hair} 0 32%, ${t.skin} 32%)` : t.skin }}
-                  />
-                ))}
-              </div>
-              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-ink-2/90 to-transparent" />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-2 p-4 sm:p-5">
-                <AnimatePresence mode="popLayout">
-                  <motion.p
-                    key={items.map((i) => i.product.id).join()}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="hidden max-w-[48%] font-script text-xl leading-tight text-cream/90 lg:block"
+                    onClick={() => {
+                      const first = options.top[0] ?? options.bottom[0]
+                      if (board.whole && first) wear(first)
+                    }}
+                    aria-pressed={!board.whole}
+                    className={`rounded-full px-3.5 py-1.5 transition-colors ${!board.whole ? 'bg-cream text-ink' : 'text-muted hover:text-cream'}`}
                   >
-                    {items.length ? items.map((i) => i.product.name).join(' + ') : 'o seu look'}
-                  </motion.p>
-                </AnimatePresence>
-                <div className="ml-auto flex gap-2" onPointerDown={(e) => e.stopPropagation()}>
-                  <button type="button" onClick={() => void takePhoto()} disabled={!stageReady || !!busy} className={btn}>
-                    {busy === 'photo' ? <TbLoader2 aria-hidden className="animate-spin" /> : <TbCamera aria-hidden />} Foto
+                    Duas peças
                   </button>
-                  {canRecordVideo() && (
-                    <button type="button" onClick={() => void recordVideo()} disabled={!stageReady || !!busy} className={btn}>
-                      {busy === 'video' ? <TbLoader2 aria-hidden className="animate-spin" /> : <TbVideo aria-hidden />}
-                      {busy === 'video' ? `Gravando ${Math.round(progress * 100)}%` : 'Vídeo 360°'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => !board.whole && wear(options.whole[0])}
+                    aria-pressed={Boolean(board.whole)}
+                    className={`rounded-full px-3.5 py-1.5 transition-colors ${board.whole ? 'bg-cream text-ink' : 'text-muted hover:text-cream'}`}
+                  >
+                    Peça inteira
+                  </button>
                 </div>
-              </div>
+              )}
+              <button type="button" onClick={surprise} className={btn}>
+                <TbArrowsShuffle aria-hidden /> Surpreenda-me
+              </button>
+              <button type="button" onClick={() => void takePhoto()} disabled={busy || !items.length} className={btn}>
+                {busy ? <TbLoader2 aria-hidden className="animate-spin" /> : <TbCamera aria-hidden />} Foto do look
+              </button>
             </div>
-            {notice && (
-              <p role="status" className="mt-3 text-center text-sm text-mint">
-                {notice}
-              </p>
-            )}
+            <AnimatePresence>
+              {notice && (
+                <motion.p role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-mint">
+                  {notice}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Escolhas */}
@@ -245,12 +143,12 @@ export function Fitting() {
                       currentTab === t.id ? 'bg-cream text-ink' : 'border border-line text-muted hover:text-cream'
                     }`}
                   >
-                    {t.label} <span className={currentTab === t.id ? 'text-ink/60' : 'text-faint'}>{byTab[t.id].length}</span>
+                    {t.label} <span className={currentTab === t.id ? 'text-ink/60' : 'text-faint'}>{options[t.id].length}</span>
                   </button>
                 ))}
               </div>
               <ul role="tabpanel" className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-4">
-                {byTab[currentTab].map((p) => {
+                {options[currentTab].map((p) => {
                   const worn = isWorn(p.id)
                   return (
                     <li key={p.id}>
@@ -292,7 +190,7 @@ export function Fitting() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted">Escolha uma peça acima para vestir o manequim.</p>
+                <p className="text-muted">Escolha uma peça acima para começar o look.</p>
               )}
             </fieldset>
 
@@ -342,7 +240,7 @@ export function Fitting() {
               </button>
             </div>
             <p className="-mt-4 text-sm text-faint">
-              O manequim mostra o molde e a cor de cada peça. Disponibilidade, valores e entrega a gente confirma na conversa.
+              Disponibilidade, valores e entrega a gente confirma na conversa.
             </p>
           </div>
         </div>
@@ -392,13 +290,5 @@ function WornRow({ item }: { item: ReturnType<typeof useLook>['items'][number] }
         </button>
       </div>
     </li>
-  )
-}
-
-function StageFallback() {
-  return (
-    <div className="grid h-full place-items-center">
-      <LogoMark className="h-1/2 w-auto opacity-50" />
-    </div>
   )
 }

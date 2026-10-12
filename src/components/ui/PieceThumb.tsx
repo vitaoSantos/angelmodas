@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { fabricById } from '../../data/catalog'
-import { coverUrl } from '../../lib/products'
+import { coverUrl, pieceSource } from '../../lib/products'
 import type { Product } from '../../lib/siteTypes'
 import { LogoMark } from './Logo'
 
-// Miniatura da peça: a foto de capa ou, sem foto, um "tecido" na cor da peça com o manequim do logo
+// Miniatura da peça: a foto de capa, a foto da peça sozinha ou, sem nenhuma, um "tecido" na cor da peça com o manequim do logo
 export function PieceThumb({ product, color = 0, className = '', size = 'thumb' }: { product: Product; color?: number; className?: string; size?: 'thumb' | 'full' }) {
   const url = coverUrl(product, size)
   const [attempt, setAttempt] = useState(0)
@@ -24,6 +24,20 @@ export function PieceThumb({ product, color = 0, className = '', size = 'thumb' 
         onError={() => (attempt ? setFailed(true) : window.setTimeout(() => setAttempt(1), 1500))}
         className={`h-full w-full object-cover ${className}`}
       />
+    )
+  }
+  const piece = pieceSource(product, color)
+  if (piece.kind === 'piece') {
+    return (
+      <span className={`block h-full w-full bg-[#efe6da] ${className}`}>
+        <img
+          src={piece.url}
+          alt={product.name}
+          loading="lazy"
+          decoding="async"
+          className={`h-full w-full ${piece.cutout ? 'object-contain p-2 drop-shadow-[0_8px_8px_rgb(60_40_20/0.3)]' : 'object-cover'}`}
+        />
+      </span>
     )
   }
   return (

@@ -15,6 +15,7 @@ import { Lookbook } from './components/sections/Lookbook'
 import { Marquee } from './components/sections/Marquee'
 import { IntroProvider } from './context/IntroContext'
 import { LookProvider } from './context/LookContext'
+import { SheetProvider } from './context/SheetContext'
 import { SiteDataProvider } from './context/SiteDataContext'
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         <SiteDataProvider>
           <LookProvider>
             <SmoothScroll>
+              <SheetProvider>
               <Background />
               <Loader />
               <Cursor />
@@ -39,6 +41,7 @@ export default function App() {
                 <Contact />
               </main>
               <Footer />
+              </SheetProvider>
             </SmoothScroll>
           </LookProvider>
         </SiteDataProvider>

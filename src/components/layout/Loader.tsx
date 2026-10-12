@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useIntro } from '../../context/IntroContext'
 import { LogoMark } from '../ui/Logo'
 
-// Tela de abertura: a cortina de veludo do provador. Enquanto o 3D é preparado por trás,
+// Tela de abertura: a cortina de veludo do provador. Enquanto a primeira foto da capa carrega,
 // o fio dourado desenha o manequim do logo e o contador vai a 100%. Quando tudo está pronto,
 // a cortina abre para os lados.
 // O contador é escrito direto no DOM e a cortina abre com transform (sem re-render a cada quadro).
@@ -12,7 +12,7 @@ const FILL_SECONDS = 1.7
 const OPEN_MS = 1300
 
 export function Loader() {
-  const { showLoader, finishIntro, heroReady, scenesReady } = useIntro()
+  const { showLoader, finishIntro, heroReady } = useIntro()
   const lenis = useLenis()
   const counter = useRef<HTMLSpanElement>(null)
   const [filled, setFilled] = useState(false)
@@ -53,8 +53,7 @@ export function Loader() {
     if (heroReady && !heroReadyAt.current) heroReadyAt.current = performance.now()
   }, [heroReady])
 
-  // Abre quando o contador chegou e as cenas estão prontas. Se o aparelho for lento, não segura
-  // ninguém: no máximo 1,2 s depois da abertura pronta (o provador termina por trás) ou 3,5 s no total.
+  // Abre quando o contador chegou e a capa está pronta. Internet lenta não segura ninguém: no máximo 3 s no total.
   useEffect(() => {
     if (!filled) return
     const go = () => {
@@ -69,12 +68,11 @@ export function Loader() {
       }, OPEN_MS)
     }
     const now = performance.now()
-    const deadlines = [filledAt.current + 3500]
-    if (heroReady) deadlines.push(heroReadyAt.current + 1200)
-    if (scenesReady) deadlines.push(now + 150)
+    const deadlines = [filledAt.current + 3000]
+    if (heroReady) deadlines.push(Math.max(now, heroReadyAt.current) + 150)
     const id = setTimeout(go, Math.max(0, Math.min(...deadlines) - now))
     return () => clearTimeout(id)
-  }, [filled, heroReady, scenesReady, finishIntro, lenis])
+  }, [filled, heroReady, finishIntro, lenis])
 
   if (!visible) return null
 

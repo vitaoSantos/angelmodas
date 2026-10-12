@@ -37,6 +37,11 @@ export function swatchUrl(id: string, key: string) {
   return `${FN}/image?tipo=tecido&id=${encodeURIComponent(id)}&foto=${encodeURIComponent(key)}`
 }
 
+// Foto da peça sozinha (por cor), com ou sem fundo
+export function pieceUrl(id: string, key: string) {
+  return `${FN}/image?tipo=recorte&id=${encodeURIComponent(id)}&foto=${encodeURIComponent(key)}`
+}
+
 const postJSON = (body: object) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
 // Conta a visita (o site chama no máximo uma vez por dia neste navegador)
@@ -88,6 +93,17 @@ export function adminDeleteProductPhoto(password: string, id: string, key: strin
 
 export function adminCoverProductPhoto(password: string, id: string, key: string) {
   return adminAction<{ product: Product }>(password, { action: 'product-photo-cover', id, key })
+}
+
+// Foto da peça sozinha numa cor (`image` em base64; `cutout`: o fundo foi tirado)
+export type PieceUpload = { image: string; width: number; height: number; cutout: boolean }
+
+export function adminSetPiece(password: string, id: string, color: number, piece: PieceUpload) {
+  return adminAction<{ product: Product }>(password, { action: 'product-piece', id, color, ...piece })
+}
+
+export function adminDeletePiece(password: string, id: string, color: number) {
+  return adminAction<{ product: Product }>(password, { action: 'product-piece-delete', id, color })
 }
 
 // Sugestões da IA para a peça da foto (`image`: JPEG em base64). `point`: onde o tecido aparece bem (0 a 1)

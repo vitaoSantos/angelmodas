@@ -22,7 +22,7 @@ export const sizes = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'U', '34', '36', '38', '4
 
 export const sortSizes = (list: string[]) => sizes.filter((s) => list.includes(s))
 
-// Tecidos: mudam o brilho, a textura e o caimento da peça no manequim 3D
+// Tecidos: aparecem na ficha da peça e na mensagem do pedido
 export type Fabric = { id: string; label: string; hint: string }
 
 export const fabrics: Fabric[] = [

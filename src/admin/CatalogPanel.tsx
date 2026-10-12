@@ -1,10 +1,11 @@
-import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   TbArrowLeft,
   TbCheck,
   TbColorPicker,
   TbCloudUpload,
   TbEyeOff,
+  TbHanger,
   TbLoader2,
   TbPencil,
   TbPhotoPlus,
@@ -15,12 +16,10 @@ import {
   TbTrash,
   TbX,
 } from 'react-icons/tb'
-import type { WornPiece } from '../components/three/Mannequin'
-import { newSpin } from '../components/three/shared'
+import { PieceImage } from '../components/ui/PieceImage'
 import { PieceThumb } from '../components/ui/PieceThumb'
 import { categories, categoryById, fabrics, formatPrice, nearestColorName, palette, sizes, sortSizes } from '../data/catalog'
-import { fitById, fits, suggestedFits, validFits, type Slot } from '../data/fits'
-import { useSpinDrag } from '../hooks/useSpinDrag'
+import { suggestedFits, validFits, wearOptionOf, wearOptions, type Slot } from '../data/fits'
 import {
   adminAddProductPhoto,
   adminAnalyzePhoto,
@@ -28,26 +27,18 @@ import {
   adminCreateProduct,
   adminDeleteProduct,
   adminDeleteProductPhoto,
+  adminSetPiece,
   adminUpdateProduct,
+  pieceUrl,
   productPhotoUrl,
   swatchUrl,
   type PhotoUpload,
 } from '../lib/api'
+import { removeBackground } from '../lib/cutout'
 import { cropSwatch, decodeImage, encodeImage, pickColor, suggestColor, toBase64 } from '../lib/images'
-import { productOrder, type Product, type ProductFields } from '../lib/siteTypes'
+import type { PieceSource } from '../lib/products'
+import { productOrder, type PiecePhoto, type Product, type ProductFields } from '../lib/siteTypes'
 import { field, Notice, PanelHeader, Switch, useLeaveWarning, type PanelProps } from './ui'
-
-const FittingStage = lazy(() => import('../components/three/FittingStage'))
-
-class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-  render() {
-    return this.state.failed ? <p className="p-6 text-sm text-muted">A prévia 3D não abriu neste navegador.</p> : this.props.children
-  }
-}
 
 // Tamanhos gerados no navegador antes do envio: a foto grande (ficha da peça) e a miniatura (arara e listas)
 const FULL = { max: 1600, quality: 0.82 }
@@ -88,7 +79,7 @@ const fieldsOf = (p: Product): ProductFields => ({
   category: p.category,
   fits: p.fits,
   fabric: p.fabric,
-  colors: p.colors,
+  colors: p.colors.map((c) => ({ name: c.name, hex: c.hex })),
   sizes: p.sizes,
   price: p.price,
   description: p.description,
@@ -129,7 +120,7 @@ export function CatalogPanel({ password, data, update }: PanelProps) {
   return (
     <div ref={top} className="grid scroll-mt-28 gap-12">
       <PanelHeader title="Catálogo">
-        As peças cadastradas aqui aparecem na arara 3D e no provador do site. Pode fotografar direto do celular: o painel diminui a foto,
+        As peças cadastradas aqui aparecem na arara e no provador do site. Pode fotografar direto do celular: o painel diminui a foto,
         gira se precisar e tira a localização antes de publicar.
       </PanelHeader>
 
@@ -156,7 +147,7 @@ export function CatalogPanel({ password, data, update }: PanelProps) {
             <TbPlus aria-hidden />
           </span>
           <span className="font-display text-2xl">Cadastrar peça nova</span>
-          <span className="max-w-sm text-sm text-muted">Fotos, cores, tamanhos, preço e o molde que aparece no manequim 3D.</span>
+          <span className="max-w-sm text-sm text-muted">Fotos, cores (com a foto da peça sozinha), tamanhos, preço e onde veste no provador.</span>
         </button>
       )}
 
@@ -263,6 +254,16 @@ function ProductCard({ product, password, update, onEdit }: { product: Product; 
 // ---------- Editor da peça ----------
 
 type NewPhoto = { key: string; file: File; preview: string }
+
+// Foto da peça sozinha de cada cor: a que já está publicada, uma nova (com e, se deu, sem fundo) ou nenhuma
+type PieceVersion = { blob: Blob; preview: string; width: number; height: number }
+type PieceState =
+  | { kind: 'saved'; photo: PiecePhoto }
+  | { kind: 'new'; plain: PieceVersion; cutout: PieceVersion | null; useCutout: boolean; note: string }
+  | { kind: 'busy' }
+  | null
+
+const PIECE = { max: 1100, quality: 0.86 }
 // recorte do tecido: mantém o que já tem, tira, ou troca por um novo
 type SwatchChange = { kind: 'keep' } | { kind: 'remove' } | { kind: 'new'; blob: Blob; preview: string }
 
@@ -287,9 +288,16 @@ function ProductEditor({
   const [error, setError] = useState('')
   const [ai, setAi] = useState<{ state: 'idle' | 'busy' | 'done' | 'error'; text: string }>({ state: 'idle', text: '' })
   const [touchedFits, setTouchedFits] = useState(Boolean(product))
+  const [pieces, setPieces] = useState<PieceState[]>(() => (product?.colors ?? []).map((c) => (c.piece ? { kind: 'saved', photo: c.piece } : null)))
   const [current, setCurrent] = useState(product)
   const previews = useRef(new Set<string>())
-  const dirty = Boolean(photos.length) || swatch.kind !== 'keep' || JSON.stringify(fields) !== JSON.stringify(product ? fieldsOf(product) : emptyFields())
+  const savedPieces = (current?.colors ?? []).map((c) => c.piece?.key ?? '')
+  const piecesChanged = fields.colors.some((_, i) => {
+    const p = pieces[i]
+    return p?.kind === 'new' || (p?.kind === 'saved' ? p.photo.key : '') !== (savedPieces[i] ?? '')
+  })
+  const dirty =
+    Boolean(photos.length) || swatch.kind !== 'keep' || piecesChanged || JSON.stringify(fields) !== JSON.stringify(product ? fieldsOf(product) : emptyFields())
   useLeaveWarning(dirty || Boolean(busy))
 
   useEffect(() => {
@@ -352,6 +360,53 @@ function ProductEditor({
     }
   }
 
+  // Foto da peça sozinha numa cor: tenta tirar o fundo na hora; se não der, fica a foto inteira
+  async function choosePiece(i: number, file: File) {
+    setPieces((list) => list.map((p, k) => (k === i ? { kind: 'busy' } : p)))
+    const version = async (blob: Blob, width: number, height: number): Promise<PieceVersion> => {
+      const preview = URL.createObjectURL(blob)
+      previews.current.add(preview)
+      return { blob, preview, width, height }
+    }
+    let bitmap: ImageBitmap | null = null
+    try {
+      bitmap = await decodeImage(file)
+      const encoded = await encodeImage(bitmap, PIECE.max, PIECE.quality)
+      const plain = await version(encoded.blob, encoded.width, encoded.height)
+      let cutout: PieceVersion | null = null
+      let note = ''
+      try {
+        const result = await removeBackground(bitmap)
+        cutout = await version(result.blob, result.width, result.height)
+      } catch (err) {
+        note = errorText(err)
+      }
+      setPieces((list) => list.map((p, k) => (k === i ? { kind: 'new', plain, cutout, useCutout: Boolean(cutout), note } : p)))
+    } catch (err) {
+      setPieces((list) => list.map((p, k) => (k === i ? null : p)))
+      setError(errorText(err))
+    } finally {
+      bitmap?.close()
+    }
+  }
+
+  // O que a prévia e a lista mostram de cada cor
+  function pieceShown(i: number): PieceSource | null {
+    const p = pieces[i]
+    if (p?.kind === 'saved' && current) return { kind: 'piece', url: pieceUrl(current.id, p.photo.key), cutout: p.photo.cutout }
+    if (p?.kind === 'new') {
+      const v = p.useCutout && p.cutout ? p.cutout : p.plain
+      return { kind: 'piece', url: v.preview, cutout: p.useCutout && Boolean(p.cutout) }
+    }
+    return null
+  }
+
+  function removeColor(i: number) {
+    setFields((f) => ({ ...f, colors: f.colors.filter((_, k) => k !== i) }))
+    setPieces((list) => list.filter((_, k) => k !== i))
+    setPickedColor(0)
+  }
+
   async function pickAt(e: React.MouseEvent<HTMLImageElement>) {
     if (!picker) return
     const rect = e.currentTarget.getBoundingClientRect()
@@ -377,8 +432,8 @@ function ProductEditor({
     setSwatch({ kind: 'new', blob, preview })
   }
 
-  // A IA olha a foto e preenche categoria, molde, tecido e cores; no ponto que ela indica,
-  // o conta-gotas tira a cor exata e o recorte do tecido para o manequim 3D
+  // A IA olha a foto e preenche categoria, onde veste, tecido e cores; no ponto que ela indica,
+  // o conta-gotas tira a cor exata e o recorte do tecido
   async function analyze() {
     if (!picker) return
     const bitmap = picker.bitmap
@@ -400,13 +455,14 @@ function ProductEditor({
         fabric: analysis.fabric,
         colors,
       }))
+      setPieces((list) => list.slice(0, colors.length))
       setTouchedFits(true)
       setPickedColor(0)
       const blob = await cropSwatch(bitmap, x, y)
       const preview = URL.createObjectURL(blob)
       previews.current.add(preview)
       setSwatch({ kind: 'new', blob, preview })
-      setAi({ state: 'done', text: 'Pronto! Confira a categoria, o molde, o tecido e as cores (e veja a prévia 3D) antes de salvar.' })
+      setAi({ state: 'done', text: 'Pronto! Confira a categoria, onde veste, o tecido e as cores antes de salvar.' })
     } catch (err) {
       setAi({ state: 'error', text: errorText(err) })
     }
@@ -417,7 +473,13 @@ function ProductEditor({
   }
 
   async function save() {
-    const payload: ProductFields = { ...fields, price: parsePrice(price), fits: validFits(fields.fits), sizes: sortSizes(fields.sizes) }
+    if (pieces.some((p) => p?.kind === 'busy')) return setError('Espere terminar de preparar a foto da peça.')
+    // cada cor leva de volta a foto da peça que já está publicada (as novas vão depois, uma por vez)
+    const colors = fields.colors.map((c, i) => {
+      const p = pieces[i]
+      return p?.kind === 'saved' ? { ...c, piece: p.photo } : c
+    })
+    const payload: ProductFields = { ...fields, colors, price: parsePrice(price), fits: validFits(fields.fits), sizes: sortSizes(fields.sizes) }
     if (payload.name.trim().length < 2) return setError('Dê um nome para a peça.')
     if (!payload.colors.length) return setError('Coloque pelo menos uma cor.')
     setError('')
@@ -440,6 +502,19 @@ function ProductEditor({
       setCurrent(saved)
       setSwatch({ kind: 'keep' })
       update((d) => ({ ...d, products: [saved, ...d.products.filter((p) => p.id !== saved.id)].sort(productOrder) }))
+      // fotos da peça sozinha de cada cor
+      for (let i = 0; i < fields.colors.length; i++) {
+        const p = pieces[i]
+        if (p?.kind !== 'new') continue
+        setBusy(`Enviando a foto da peça (cor ${i + 1})…`)
+        const v = p.useCutout && p.cutout ? p.cutout : p.plain
+        const upload = { image: await toBase64(v.blob), width: v.width, height: v.height, cutout: p.useCutout && Boolean(p.cutout) }
+        saved = (await adminSetPiece(password, saved.id, i, upload)).product
+        const photo = saved.colors[i]?.piece
+        setPieces((list) => list.map((x, k) => (k === i && photo ? { kind: 'saved', photo } : x)))
+        setCurrent(saved)
+        update((d) => ({ ...d, products: d.products.map((x) => (x.id === saved.id ? saved : x)) }))
+      }
       // as outras fotos vão uma por vez (cada chamada tem limite de tamanho)
       for (let i = 0; i < queue.length; i++) {
         setBusy(`Enviando foto ${i + 1} de ${queue.length}…`)
@@ -472,24 +547,13 @@ function ProductEditor({
     }
   }
 
-  const slot = (id: string) => fitById(id)?.slot
-  const isSet = fields.category === 'conjuntos'
-  const topFit = fields.fits.find((f) => slot(f) === 'top') ?? ''
-  const bottomFit = fields.fits.find((f) => slot(f) === 'bottom') ?? ''
-  const singleFit = fields.fits[0] ?? ''
+  const wear = wearOptionOf(fields.fits)
   const swatchPreview =
     swatch.kind === 'new' ? swatch.preview : swatch.kind === 'keep' && current?.swatch ? swatchUrl(current.id, current.swatch) : ''
-  const previewPieces = useMemo(
-    () =>
-      validFits(fields.fits).map((fit) => ({
-        key: `preview:${fit}`,
-        fit,
-        color: fields.colors[pickedColor]?.hex ?? fields.colors[0]?.hex ?? '#b9a08a',
-        fabric: fields.fabric,
-        swatch: swatchPreview && (pickedColor === 0 || fields.fabric !== 'estampado') ? swatchPreview : undefined,
-      })),
-    [fields.fits, fields.colors, fields.fabric, pickedColor, swatchPreview],
-  )
+  const previewColor = Math.min(pickedColor, Math.max(0, fields.colors.length - 1))
+  const previewSource: PieceSource =
+    pieceShown(previewColor) ??
+    (photos[0] ? { kind: 'photo', url: photos[0].preview, cutout: false } : current?.photos[0] ? { kind: 'photo', url: productPhotoUrl(current.id, current.photos[0].key, 'thumb'), cutout: false } : { kind: 'none', url: '', cutout: false })
   const totalPhotos = (current?.photos.length ?? 0) + photos.length
 
   return (
@@ -579,7 +643,7 @@ function ProductEditor({
             <div className="grid gap-3 rounded-2xl border border-gold/30 bg-gold/[0.04] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-sm text-sm text-muted">
-                  <span className="font-medium text-cream">Preencher com IA:</span> a IA olha a foto e sugere nome, categoria, molde do manequim,
+                  <span className="font-medium text-cream">Preencher com IA:</span> a IA olha a foto e sugere nome, categoria, onde veste,
                   tecido e cores.
                 </p>
                 <button
@@ -604,7 +668,7 @@ function ProductEditor({
             <div>
               <p className="mb-2 flex items-center gap-2 text-sm text-muted">
                 <TbColorPicker aria-hidden className="text-gold" /> Toque no tecido da foto para tirar a cor
-                {fields.colors.length > 1 && <> da cor {pickedColor + 1}</>} e o recorte do tecido para o manequim 3D
+                {fields.colors.length > 1 && <> da cor {pickedColor + 1}</>} e o recorte do tecido
               </p>
               <div className="relative overflow-hidden rounded-2xl bg-ink-3">
                 <img src={picker.url} alt="Foto para tirar a cor" onClick={(e) => void pickAt(e)} className="max-h-[26rem] w-full cursor-crosshair object-contain" />
@@ -613,19 +677,19 @@ function ProductEditor({
                 {swatchPreview ? (
                   <>
                     <span className="size-12 rounded-full bg-cover bg-center ring-2 ring-gold/60" style={{ backgroundImage: `url("${swatchPreview}")` }} />
-                    <span className="text-muted">Recorte do tecido (vira a textura no 3D)</span>
+                    <span className="text-muted">Tecido de perto (aparece na ficha da peça)</span>
                     <button type="button" onClick={() => setSwatch({ kind: 'remove' })} className="text-gold hover:underline">
                       tirar recorte
                     </button>
                   </>
                 ) : (
-                  <span className="text-faint">Sem recorte de tecido: o 3D usa só a cor.</span>
+                  <span className="text-faint">Sem recorte de tecido: a ficha mostra só a cor.</span>
                 )}
               </div>
             </div>
           ) : (
             <p className="rounded-2xl border border-line px-4 py-3 text-sm text-faint">
-              Com uma foto, dá para tocar no tecido e tirar a cor certinha e um recorte do tecido para o manequim 3D.
+              Com uma foto, dá para tocar no tecido e tirar a cor certinha e um recorte do tecido.
             </p>
           )}
         </div>
@@ -660,48 +724,33 @@ function ProductEditor({
             </label>
           </div>
 
-          <div className="grid gap-2 text-sm text-muted">
-            <span>Molde no provador 3D</span>
-            {isSet ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <FitSelect
-                  label="Parte de cima"
-                  slots={['top']}
-                  value={topFit}
-                  onChange={(v) => {
-                    setTouchedFits(true)
-                    set({ fits: [v, bottomFit].filter(Boolean) })
-                  }}
-                />
-                <FitSelect
-                  label="Parte de baixo"
-                  slots={['bottom']}
-                  value={bottomFit}
-                  onChange={(v) => {
-                    setTouchedFits(true)
-                    set({ fits: [topFit, v].filter(Boolean) })
-                  }}
-                />
-              </div>
-            ) : (
-              <FitSelect
-                label="Molde"
-                slots={['top', 'bottom', 'full']}
-                value={singleFit}
-                onChange={(v) => {
-                  setTouchedFits(true)
-                  set({ fits: v ? [v] : [] })
-                }}
-              />
-            )}
-            <span className="text-xs text-faint">É o formato que veste o manequim. Escolha o mais parecido; a prévia ao lado mostra como fica.</span>
-          </div>
+          <label className="grid gap-2 text-sm text-muted">
+            Onde veste no provador
+            <select
+              className={field}
+              value={wear}
+              onChange={(e) => {
+                setTouchedFits(true)
+                set({ fits: [...(wearOptions.find((o) => o.id === e.target.value)?.fits ?? [])] })
+              }}
+            >
+              {wearOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-faint">No provador, a cliente combina a parte de cima com a de baixo, ou escolhe uma peça inteira.</span>
+          </label>
 
           <div className="grid gap-2 text-sm text-muted">
-            <span>Cores {fields.colors.length > 1 && <span className="text-faint">· toque numa cor para usar o conta-gotas nela</span>}</span>
+            <span>
+              Cores <span className="text-faint">· em cada cor, a foto da peça sozinha (esticada ou no cabide) é a que aparece no provador</span>
+            </span>
             <ul className="grid gap-2">
               {fields.colors.map((c, i) => (
-                <li key={i} className={`flex items-center gap-2 rounded-2xl border p-2 ${pickedColor === i ? 'border-gold/60 bg-gold/[0.05]' : 'border-line'}`}>
+                <li key={i} className={`grid gap-2 rounded-2xl border p-2 ${pickedColor === i ? 'border-gold/60 bg-gold/[0.05]' : 'border-line'}`}>
+                  <div className="flex items-center gap-2">
                   <label className="relative size-10 shrink-0 cursor-pointer overflow-hidden rounded-full ring-1 ring-line-strong" style={{ background: c.hex }}>
                     <span className="sr-only">Escolher a cor {i + 1}</span>
                     <input
@@ -730,17 +779,30 @@ function ProductEditor({
                   >
                     <TbColorPicker aria-hidden />
                   </button>
+                  <PieceSlot
+                    state={pieces[i] ?? null}
+                    shown={pieceShown(i)}
+                    color={i + 1}
+                    disabled={Boolean(busy)}
+                    onFile={(file) => {
+                      setPickedColor(i)
+                      void choosePiece(i, file)
+                    }}
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      setFields((f) => ({ ...f, colors: f.colors.filter((_, k) => k !== i) }))
-                      setPickedColor(0)
-                    }}
+                    onClick={() => removeColor(i)}
                     aria-label={`Tirar a cor ${i + 1}`}
                     className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:text-red-300"
                   >
                     <TbX aria-hidden />
                   </button>
+                  </div>
+                  <PieceStatus
+                    state={pieces[i] ?? null}
+                    onToggle={() => setPieces((list) => list.map((p, k) => (k === i && p?.kind === 'new' ? { ...p, useCutout: !p.useCutout } : p)))}
+                    onRemove={() => setPieces((list) => list.map((p, k) => (k === i ? null : p)))}
+                  />
                 </li>
               ))}
             </ul>
@@ -754,6 +816,7 @@ function ProductEditor({
                     aria-label={`Adicionar a cor ${p.label}`}
                     onClick={() => {
                       setFields((f) => ({ ...f, colors: [...f.colors, { name: p.label, hex: p.color }] }))
+                      setPieces((list) => [...list.slice(0, fields.colors.length), null])
                       setPickedColor(fields.colors.length)
                     }}
                     className="size-7 rounded-full ring-1 ring-line-strong transition-transform hover:scale-110"
@@ -814,8 +877,16 @@ function ProductEditor({
         </div>
       </div>
 
-      {/* Prévia no manequim */}
-      {previewPieces.length > 0 && <Preview pieces={previewPieces} />}
+      {/* Prévia no provador */}
+      {wear !== 'nenhum' && (
+        <ProvadorPreview
+          source={previewSource}
+          slot={wear === 'cima' ? 'top' : wear === 'baixo' ? 'bottom' : 'full'}
+          name={fields.name || 'Peça nova'}
+          hex={fields.colors[previewColor]?.hex}
+          colorName={fields.colors[previewColor]?.name}
+        />
+      )}
 
       {error && <Notice tone="error">{error}</Notice>}
 
@@ -849,40 +920,87 @@ function Toggle({ on, label, onToggle, icon }: { on: boolean; label: string; onT
   )
 }
 
-const SLOT_LABEL: Record<Slot, string> = { top: 'Parte de cima', bottom: 'Parte de baixo', full: 'Peça inteira' }
-
-function FitSelect({ label, slots, value, onChange }: { label: string; slots: Slot[]; value: string; onChange: (v: string) => void }) {
+// Botão da foto da peça sozinha numa cor (miniatura quando já tem)
+function PieceSlot({
+  state,
+  shown,
+  color,
+  disabled,
+  onFile,
+}: {
+  state: PieceState
+  shown: PieceSource | null
+  color: number
+  disabled: boolean
+  onFile: (file: File) => void
+}) {
   return (
-    <select className={field} value={value} aria-label={label} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{slots.length > 1 ? 'Não aparece no provador' : `${label}: nenhuma`}</option>
-      {slots.map((slot) => (
-        <optgroup key={slot} label={SLOT_LABEL[slot]}>
-          {fits
-            .filter((f) => f.slot === slot)
-            .map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-        </optgroup>
-      ))}
-    </select>
+    <label
+      className={`relative grid size-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-xl text-lg ring-1 transition-colors ${
+        shown ? 'bg-[#efe6da] ring-gold/50' : 'border border-dashed border-line-strong text-muted ring-transparent hover:text-cream'
+      } ${disabled ? 'pointer-events-none opacity-60' : ''}`}
+      title={shown ? 'Trocar a foto da peça' : 'Foto da peça sozinha'}
+    >
+      <span className="sr-only">{shown ? `Trocar a foto da peça da cor ${color}` : `Foto da peça sozinha na cor ${color}`}</span>
+      {state?.kind === 'busy' ? (
+        <TbLoader2 aria-hidden className="animate-spin text-gold" />
+      ) : shown ? (
+        <img src={shown.url} alt="" className={`h-full w-full ${shown.cutout ? 'object-contain p-0.5' : 'object-cover'}`} />
+      ) : (
+        <TbHanger aria-hidden />
+      )}
+      <input
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) onFile(file)
+          e.target.value = ''
+        }}
+      />
+    </label>
   )
 }
 
-// Prévia: o manequim vestido com a peça do jeito que está no formulário
-function Preview({ pieces }: { pieces: WornPiece[] }) {
-  const spin = useRef(newSpin())
-  const onDrag = useSpinDrag(spin)
+// Linha embaixo da cor: se o fundo saiu, a escolha entre com e sem fundo, e o botão de tirar a foto
+function PieceStatus({ state, onToggle, onRemove }: { state: PieceState; onToggle: () => void; onRemove: () => void }) {
+  if (!state || state.kind === 'busy') {
+    return state?.kind === 'busy' ? <p className="px-1 text-xs text-gold-soft">Tirando o fundo da foto…</p> : null
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
+      {state.kind === 'new' ? (
+        state.cutout ? (
+          <span className="flex items-center gap-2 text-muted">
+            <Switch on={state.useCutout} onToggle={onToggle} label="Usar sem fundo" />
+            {state.useCutout ? 'Sem fundo' : 'Com o fundo da foto'}
+          </span>
+        ) : (
+          <span className="text-muted">Foto com fundo. {state.note}</span>
+        )
+      ) : (
+        <span className="text-faint">Foto da peça publicada{state.photo.cutout ? ', sem fundo' : ''}</span>
+      )}
+      <button type="button" onClick={onRemove} className="text-gold hover:underline">
+        tirar a foto da peça
+      </button>
+    </div>
+  )
+}
+
+// Prévia: a peça no papel do provador, do jeito que a cliente vai ver
+function ProvadorPreview({ source, slot, name, hex, colorName }: { source: PieceSource; slot: Slot; name: string; hex?: string; colorName?: string }) {
   return (
     <div className="grid gap-2">
-      <p className="text-sm text-muted">Prévia no manequim 3D · arraste para girar</p>
-      <div className="relative h-[28rem] touch-pan-y select-none overflow-hidden rounded-2xl bg-ink-3" data-cursor="drag" onPointerDown={onDrag}>
-        <Boundary>
-          <Suspense fallback={<p className="p-6 text-sm text-muted">Abrindo a prévia…</p>}>
-            <FittingStage pieces={pieces} spin={spin} active mobile={false} reduced={false} background="#211c19" />
-          </Suspense>
-        </Boundary>
+      <p className="text-sm text-muted">
+        Prévia no provador{colorName ? ` · cor ${colorName.toLowerCase()}` : ''}
+        {source.kind === 'photo' && <span className="text-faint"> · sem a foto da peça sozinha, o provador usa a foto com modelo</span>}
+      </p>
+      <div className="grid justify-items-center rounded-2xl bg-ink-3 p-6">
+        <div className={`w-full max-w-xs rounded-[1.5rem] bg-[#efe6da] ${slot === 'full' ? 'aspect-[3/4]' : 'aspect-[4/3]'}`}>
+          <PieceImage source={source} slot={slot} name={name} hex={hex} eager />
+        </div>
       </div>
     </div>
   )

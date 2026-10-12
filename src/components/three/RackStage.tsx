@@ -1,23 +1,22 @@
-import { PerspectiveCamera, RenderTexture } from '@react-three/drei'
-import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { coverUrl, priceLabel, wornPieces } from '../../lib/products'
+import { coverUrl, pieceSource, priceLabel } from '../../lib/products'
 import type { Product } from '../../lib/siteTypes'
 import { drawTag, TAG_SIZE, tagFontsReady } from '../../lib/tagArt'
-import { Mannequin } from './Mannequin'
 import { RACK_SPACING, type RackMotion } from './shared'
-import { Glow, GoldDust, makeStudioEnvironment, SharedEnvironment, SoftShadow, StudioLights } from './Studio'
+import { Glow, GoldDust, StudioLights } from './Studio'
 
 // Arara 3D do catálogo: as peças ficam penduradas em cabides dourados num varão.
 // Arrastar (ou as setas) move a arara; os cabides balançam com o movimento.
-// Peça com foto: a foto vira o cartão. Sem foto: o cartão é o manequim vestido com a peça.
+// O cartão é a foto da peça (com modelo); sem ela, a foto da peça sozinha num papel, ou o nome da peça.
+// No celular a cena é mais leve: resolução 1x, sem antisserrilhado, menos cartões montados e sem as partículas.
 
 const SPACING = RACK_SPACING
 const CARD = { w: 1.1, h: 1.375 }
 const RAIL_Y = 1.2
-const WINDOW = 9 // quantos cartões de cada lado do centro ficam montados
+const WINDOW = { desktop: 8, mobile: 4 } // quantos cartões de cada lado do centro ficam montados
 
 type Props = {
   products: Product[]
@@ -27,7 +26,6 @@ type Props = {
   mobile: boolean
   reduced: boolean
   showPrices: boolean
-  skin?: string
 }
 
 // ---------- Peças compartilhadas ----------
@@ -129,26 +127,79 @@ function coverFit(texture: THREE.Texture, width: number, height: number) {
   }
 }
 
+// Peça sem foto com modelo: a foto da peça sozinha pousada num papel cor de linho (ou só o nome)
+async function paperCard(product: Product) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 440
+  canvas.height = 550
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('canvas')
+  const bg = ctx.createLinearGradient(0, 0, 0, canvas.height)
+  bg.addColorStop(0, '#f3ebe0')
+  bg.addColorStop(1, '#e2d5c4')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  const piece = pieceSource(product, 0)
+  if (piece.kind === 'piece') {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image()
+      i.crossOrigin = 'anonymous'
+      i.onload = () => resolve(i)
+      i.onerror = reject
+      i.src = piece.url
+    })
+    const pad = piece.cutout ? 36 : 28
+    const s = piece.cutout
+      ? Math.min((canvas.width - pad * 2) / img.width, (canvas.height - pad * 2) / img.height)
+      : Math.max((canvas.width - pad * 2) / img.width, (canvas.height - pad * 2) / img.height)
+    const w = img.width * s
+    const h = img.height * s
+    ctx.save()
+    if (!piece.cutout) {
+      ctx.beginPath()
+      ctx.rect(pad, pad, canvas.width - pad * 2, canvas.height - pad * 2)
+      ctx.clip()
+    }
+    ctx.shadowColor = 'rgba(60, 40, 20, 0.3)'
+    ctx.shadowBlur = 24
+    ctx.shadowOffsetY = 14
+    ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h)
+    ctx.restore()
+  } else {
+    await tagFontsReady()
+    ctx.fillStyle = product.colors[0]?.hex ?? '#d6bf9f'
+    ctx.beginPath()
+    ctx.arc(canvas.width / 2, canvas.height / 2 - 40, 90, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#2a1d16'
+    ctx.textAlign = 'center'
+    ctx.font = '600 40px "Cormorant Garamond Variable", Georgia, serif'
+    ctx.fillText(product.name.length > 24 ? `${product.name.slice(0, 23)}…` : product.name, canvas.width / 2, canvas.height / 2 + 110)
+  }
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
 function usePhoto(product: Product) {
   const url = coverUrl(product, 'thumb')
   const [texture, setTexture] = useState<THREE.Texture | null>(null)
   useEffect(() => {
-    if (!url) return
     let cancelled = false
-    loadPhoto(url)
-      .then((t) => {
-        if (cancelled) return
-        const photo = product.photos[0]
-        const copy = t.clone()
-        coverFit(copy, photo.width, photo.height)
-        copy.needsUpdate = true
-        setTexture(copy)
-      })
-      .catch(() => undefined)
+    const ready = url
+      ? loadPhoto(url).then((t) => {
+          const photo = product.photos[0]
+          const copy = t.clone()
+          coverFit(copy, photo.width, photo.height)
+          copy.needsUpdate = true
+          return copy
+        })
+      : paperCard(product)
+    ready.then((t) => !cancelled && setTexture(t)).catch(() => undefined)
     return () => {
       cancelled = true
     }
-  }, [url, product.photos])
+  }, [url, product])
   return texture
 }
 
@@ -185,49 +236,25 @@ function useTag(product: Product, showPrices: boolean) {
 
 // ---------- Cartão ----------
 
-// Foto do manequim vestido com a peça (renderizada uma vez numa textura)
-function MannequinShot({ product, env, skin }: { product: Product; env: THREE.Texture | null; skin?: string }) {
-  const looks = useMemo(() => [wornPieces(product, 0)], [product])
-  return (
-    <RenderTexture attach="map" width={384} height={480} frames={3}>
-      {/* `manual`: o formato da câmera é o do cartão, e não o da tela */}
-      <PerspectiveCamera makeDefault manual aspect={384 / 480} position={[0, 1.74, 9.2]} fov={22} />
-      <color attach="background" args={['#ece2d6']} />
-      <SharedEnvironment texture={env} />
-      <StudioLights />
-      <Glow color="#ffffff" opacity={0.7} scale={7} position={[0, 2, -2]} />
-      <group rotation={[0, 0.35, 0]}>
-        <Mannequin looks={looks} detail={0.5} pedestal={false} skin={skin} />
-      </group>
-      <SoftShadow opacity={0.35} />
-    </RenderTexture>
-  )
-}
-
 const Card = memo(function Card({
   product,
   index,
   motion,
   onSelect,
-  env,
   showPrices,
   reduced,
-  skin,
 }: {
   product: Product
   index: number
   motion: React.MutableRefObject<RackMotion>
   onSelect: (p: Product) => void
-  env: THREE.Texture | null
   showPrices: boolean
   reduced: boolean
-  skin?: string
 }) {
   const group = useRef<THREE.Group>(null)
   const swing = useRef({ angle: 0, velocity: 0, lift: 0, hover: false })
   const photo = usePhoto(product)
   const tag = useTag(product, showPrices)
-  const hasPhoto = product.photos.length > 0
 
   useFrame((state, delta) => {
     const g = group.current
@@ -274,14 +301,8 @@ const Card = memo(function Card({
           <group position={[0, 0.82 - CARD.h / 2, 0]}>
             <mesh geometry={geometries.frame} material={paper} onPointerOver={over} onPointerOut={out} onClick={click} />
             <mesh geometry={geometries.photo} position={[0, 0, 0.004]} onPointerOver={over} onPointerOut={out} onClick={click}>
-              {hasPhoto ? (
-                // `key`: quando a foto chega o material é refeito (o shader muda: passa a ter textura)
-                <meshStandardMaterial key={photo ? 'foto' : 'sem-foto'} map={photo} color={photo ? '#ffffff' : '#d9cbb8'} roughness={0.55} />
-              ) : (
-                <meshStandardMaterial roughness={0.6}>
-                  <MannequinShot key={skin} product={product} env={env} skin={skin} />
-                </meshStandardMaterial>
-              )}
+              {/* `key`: quando a foto chega o material é refeito (o shader muda: passa a ter textura) */}
+              <meshStandardMaterial key={photo ? 'foto' : 'sem-foto'} map={photo} color={photo ? '#ffffff' : '#d9cbb8'} roughness={0.55} />
             </mesh>
             {/* etiqueta pendurada no canto do cartão */}
             <group position={[0.3, -CARD.h / 2 - 0.02, 0.03]} rotation={[0, 0, 0.07]}>
@@ -299,12 +320,9 @@ const Card = memo(function Card({
 
 // ---------- Cena ----------
 
-function Rack({ products, motion, onSelect, mobile, reduced, showPrices, skin }: Omit<Props, 'active'>) {
-  const gl = useThree((s) => s.gl)
-  const [env] = useState(() => makeStudioEnvironment(gl, 64))
+function Rack({ products, motion, onSelect, mobile, reduced, showPrices }: Omit<Props, 'active'>) {
   const [center, setCenter] = useState(0)
-  useEffect(() => () => env.dispose(), [env])
-  const envTexture = env.texture
+  const reach = mobile ? WINDOW.mobile : WINDOW.desktop
 
   useFrame((_, delta) => {
     const m = motion.current
@@ -319,17 +337,17 @@ function Rack({ products, motion, onSelect, mobile, reduced, showPrices, skin }:
     if (c !== center) setCenter(c)
   })
 
-  const from = Math.max(0, center - WINDOW)
-  const visible = products.slice(from, center + WINDOW + 1)
+  const from = Math.max(0, center - reach)
+  const visible = products.slice(from, center + reach + 1)
   const length = Math.max(1, products.length - 1) * SPACING + SPACING * 2
 
   return (
     <>
       <RailBar length={length} motion={motion} />
       {visible.map((p, i) => (
-        <Card key={p.id} product={p} index={from + i} motion={motion} onSelect={onSelect} env={envTexture} showPrices={showPrices} reduced={reduced} skin={skin} />
+        <Card key={p.id} product={p} index={from + i} motion={motion} onSelect={onSelect} showPrices={showPrices} reduced={reduced} />
       ))}
-      <GoldDust count={mobile ? 30 : 60} spread={1.4} />
+      {!mobile && <GoldDust count={60} spread={1.4} />}
     </>
   )
 }
@@ -360,14 +378,14 @@ function RailBar({ length, motion }: { length: number; motion: React.MutableRefO
 }
 
 export default function RackStage({ active, ...props }: Props) {
-  const [dpr] = useState(() => Math.min(window.devicePixelRatio || 1, 1.5))
   const { mobile } = props
+  const [dpr] = useState(() => Math.min(window.devicePixelRatio || 1, mobile ? 1 : 1.5))
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
       dpr={dpr}
       camera={{ position: [0, 0.05, mobile ? 4.4 : 5.6], fov: mobile ? 42 : 34 }}
-      gl={{ antialias: true, alpha: false, toneMapping: THREE.ACESFilmicToneMapping }}
+      gl={{ antialias: !mobile, alpha: false, powerPreference: mobile ? 'low-power' : 'high-performance', toneMapping: THREE.ACESFilmicToneMapping }}
       aria-hidden
     >
       <color attach="background" args={['#120f0d']} />

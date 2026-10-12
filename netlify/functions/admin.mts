@@ -1,5 +1,5 @@
 import type { Context } from '@netlify/functions'
-import { newestFirst, productOrder, type AdminData, type MuralPhoto, type Product, type ProductPhoto } from '../../src/lib/siteTypes'
+import { newestFirst, productOrder, type AdminData, type MuralPhoto, type PiecePhoto, type Product, type ProductPhoto } from '../../src/lib/siteTypes'
 import { AnalysisError, analyzePhoto } from '../lib/analyze'
 import { cleanProductFields } from '../lib/products'
 import { cleanSettings, hasCategoryOn } from '../lib/settings'
@@ -29,11 +29,11 @@ import {
 } from '../lib/store'
 
 // Painel (/admin), protegido pela senha da variável de ambiente ADMIN_PASSWORD.
-// GET: tudo o que o painel mostra. POST JSON { action }: peças do catálogo (criar, editar, fotos, apagar, analisar a foto com IA),
+// GET: tudo o que o painel mostra. POST JSON { action }: peças do catálogo (criar, editar, fotos, foto da peça por cor, apagar, analisar a foto com IA),
 // fotos do mural de clientes, opções do site, recados e se os recados entram direto ou esperam aprovação.
 
 // O Netlify aceita até 6 MB por chamada (contando o base64): a foto grande cabe com folga
-const LIMITS = { title: 90, look: 60, thumb: 600 * 1024, full: 3 * 1024 * 1024, swatch: 120 * 1024, analyze: 1024 * 1024, photos: 400, products: 300, productPhotos: 6 }
+const LIMITS = { title: 90, look: 60, thumb: 600 * 1024, full: 3 * 1024 * 1024, swatch: 120 * 1024, piece: 1200 * 1024, analyze: 1024 * 1024, photos: 400, products: 300, productPhotos: 6 }
 const LOCK = { attempts: 8, ms: 15 * 60_000 }
 
 type Body = Record<string, unknown>
@@ -190,13 +190,23 @@ async function updateProduct(body: Body) {
     await s.set(KEYS.swatch(body.id, swatch), piece.data.buffer as ArrayBuffer, { metadata: { type: piece.type } })
   }
 
-  const previous = { swatch: '' }
+  // fotos da peça por cor: a cor mantém a foto que o painel mandou de volta (se ela era desta peça)
+  const sent = Array.isArray(body.colors) ? (body.colors as { piece?: { key?: unknown } }[]) : []
+  const previous = { swatch: '', pieces: [] as string[] }
   const product = await changeProduct(body.id, (p) => {
+    const known = new Map(p.colors.flatMap((c) => (c.piece ? [[c.piece.key, c.piece] as const] : [])))
     previous.swatch = p.swatch
-    return { ...p, ...result.fields, swatch: swatch ?? p.swatch }
+    previous.pieces = [...known.keys()]
+    const colors = result.fields.colors.map((c, i) => {
+      const piece = known.get(String(sent[i]?.piece?.key ?? ''))
+      return piece ? { ...c, piece } : c
+    })
+    return { ...p, ...result.fields, colors, swatch: swatch ?? p.swatch }
   })
   if (!product) return json({ error: 'Peça não encontrada.' }, 404)
   if (swatch !== undefined && previous.swatch && previous.swatch !== swatch) await s.delete(KEYS.swatch(body.id, previous.swatch))
+  const kept = new Set(product.colors.map((c) => c.piece?.key))
+  await Promise.all(previous.pieces.filter((key) => !kept.has(key)).map((key) => s.delete(KEYS.piece(body.id as string, key))))
   await purgeSite()
   return json({ product })
 }
@@ -232,6 +242,55 @@ async function deleteProductPhoto(body: Body) {
   return json({ product })
 }
 
+// Foto da peça sozinha numa cor (troca a que tinha)
+async function setPiece(body: Body) {
+  if (!validId(body.id)) return json({ error: 'Peça inválida.' }, 400)
+  const color = Math.round(Number(body.color))
+  if (!Number.isInteger(color) || color < 0 || color >= 8) return json({ error: 'Cor inválida.' }, 400)
+  const data = bytes(body.image, LIMITS.piece)
+  if (!data) return json({ error: 'Foto grande demais ou com defeito.' }, 413)
+  const type = sniff(data)
+  if (!type) return json({ error: 'Formato de imagem não aceito. Use JPG, PNG ou WebP.' }, 415)
+  const width = size(body.width)
+  const height = size(body.height)
+  if (!width || !height) return json({ error: 'Envio inválido.' }, 400)
+
+  const s = store()
+  const key = newId()
+  await s.set(KEYS.piece(body.id, key), data.buffer as ArrayBuffer, { metadata: { type } })
+  const piece: PiecePhoto = { key, width, height, cutout: type !== 'image/jpeg' && body.cutout === true }
+  const previous = { key: '', placed: false }
+  const product = await changeProduct(body.id, (p) => {
+    if (color >= p.colors.length) return p
+    previous.placed = true
+    previous.key = p.colors[color].piece?.key ?? ''
+    return { ...p, colors: p.colors.map((c, i) => (i === color ? { ...c, piece } : c)) }
+  })
+  if (!product || !previous.placed) {
+    await s.delete(KEYS.piece(body.id, key))
+    return json({ error: product ? 'Cor não encontrada.' : 'Peça não encontrada.' }, 404)
+  }
+  if (previous.key) await s.delete(KEYS.piece(body.id, previous.key))
+  await purgeSite()
+  return json({ product }, 201)
+}
+
+async function deletePiece(body: Body) {
+  if (!validId(body.id)) return json({ error: 'Peça inválida.' }, 400)
+  const color = Math.round(Number(body.color))
+  const previous = { key: '' }
+  const product = await changeProduct(body.id, (p) => {
+    const piece = p.colors[color]?.piece
+    if (!piece) return p
+    previous.key = piece.key
+    return { ...p, colors: p.colors.map((c, i) => (i === color ? { name: c.name, hex: c.hex } : c)) }
+  })
+  if (!product) return json({ error: 'Peça não encontrada.' }, 404)
+  if (previous.key) await store().delete(KEYS.piece(body.id, previous.key))
+  await purgeSite()
+  return json({ product })
+}
+
 // Passa uma foto para a frente (vira a capa)
 async function coverProductPhoto(body: Body) {
   if (!validId(body.id) || !validId(body.key)) return json({ error: 'Foto inválida.' }, 400)
@@ -258,6 +317,7 @@ async function deleteProduct(id: unknown) {
     await Promise.all([
       ...removed.photos.flatMap((photo) => [s.delete(KEYS.productPhoto(id, photo.key, 'full')), s.delete(KEYS.productPhoto(id, photo.key, 'thumb'))]),
       removed.swatch ? s.delete(KEYS.swatch(id, removed.swatch)) : Promise.resolve(),
+      ...removed.colors.flatMap((c) => (c.piece ? [s.delete(KEYS.piece(id, c.piece.key))] : [])),
     ])
   }
   await purgeSite([`img-${id}`])
@@ -405,6 +465,10 @@ export default async (req: Request, context: Context) => {
       return deleteProductPhoto(body)
     case 'product-photo-cover':
       return coverProductPhoto(body)
+    case 'product-piece':
+      return setPiece(body)
+    case 'product-piece-delete':
+      return deletePiece(body)
     case 'product-delete':
       return deleteProduct(body.id)
     case 'product-analyze':

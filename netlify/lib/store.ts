@@ -17,6 +17,7 @@ export const KEYS = {
   products: 'catalogo/index',
   productPhoto: (id: string, key: string, size: 'thumb' | 'full') => `catalogo/${id}/foto/${key}/${size}`,
   swatch: (id: string, key: string) => `catalogo/${id}/tecido/${key}`,
+  piece: (id: string, key: string) => `catalogo/${id}/peca/${key}`,
   photos: 'mural/index',
   settings: 'settings',
   photo: (id: string, size: 'thumb' | 'full') => `mural/${id}/${size}`,

@@ -87,7 +87,7 @@ export function pickColor(source: ImageBitmap, x: number, y: number) {
   return toHex(sum[0] / middle.length, sum[1] / middle.length, sum[2] / middle.length)
 }
 
-// Recorte quadrado do tecido no ponto tocado, para virar textura da peça no manequim 3D
+// Recorte quadrado do tecido no ponto tocado: o "tecido de perto" da ficha da peça
 export async function cropSwatch(source: ImageBitmap, x: number, y: number) {
   const { canvas } = readSquare(source, x, y, 0.16, 128)
   return encodeCanvas(canvas, 0.85)
